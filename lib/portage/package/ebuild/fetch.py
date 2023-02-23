@@ -15,10 +15,11 @@ import stat
 import sys
 import tempfile
 import time
-
+from dataclasses import dataclass
 from collections import OrderedDict
 from urllib.parse import urlparse
 from urllib.parse import quote as urlquote
+from typing import Optional
 
 import portage
 
@@ -741,6 +742,19 @@ def get_mirror_url(mirror_url, filename, mysettings, cache_path=None):
         return os.path.join(mirror_url, path)
     else:
         return mirror_url + "/distfiles/" + path
+
+
+@dataclass
+class FilesFetcherParameters:
+    settings: config
+    listonly: bool
+    fetchonly: bool
+    locks_in_subdir: str
+    use_locks: bool
+    try_mirrors: bool
+    digests: Optional[dict]
+    allow_missing_digests: bool
+    force: bool
 
 
 def fetch(
