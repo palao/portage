@@ -1862,84 +1862,75 @@ def fetch(
                                                 pass
                                 fetched = 1
                                 continue
-                            if True:
-                                # File is the correct size--check the checksums for the fetched
-                                # file NOW, for those users who don't have a stable/continuous
-                                # net connection. This way we have a chance to try to download
-                                # from another mirror...
-                                digests = _filter_unaccelarated_hashes(
-                                    mydigests[myfile]
+
+                            # File is the correct size--check the checksums for the fetched
+                            # file NOW, for those users who don't have a stable/continuous
+                            # net connection. This way we have a chance to try to download
+                            # from another mirror...
+                            digests = _filter_unaccelarated_hashes(mydigests[myfile])
+                            if hash_filter is not None:
+                                digests = _apply_hash_filter(digests, hash_filter)
+                            verified_ok, reason = verify_all(download_path, digests)
+                            if not verified_ok:
+                                writemsg(
+                                    _("!!! Fetched file: %s VERIFY FAILED!\n") % myfile,
+                                    noiselevel=-1,
                                 )
-                                if hash_filter is not None:
-                                    digests = _apply_hash_filter(digests, hash_filter)
-                                verified_ok, reason = verify_all(download_path, digests)
-                                if not verified_ok:
-                                    writemsg(
-                                        _("!!! Fetched file: %s VERIFY FAILED!\n")
-                                        % myfile,
+                                writemsg(
+                                    _("!!! Reason: %s\n") % reason[0], noiselevel=-1
+                                )
+                                writemsg(
+                                    _("!!! Got:      %s\n!!! Expected: %s\n")
+                                    % (reason[1], reason[2]),
+                                    noiselevel=-1,
+                                )
+                                if reason[0] == _(
+                                    "Insufficient data for checksum verification"
+                                ):
+                                    return 0
+                                if distdir_writable:
+                                    temp_filename = _checksum_failure_temp_file(
+                                        mysettings,
+                                        mysettings["DISTDIR"],
+                                        os.path.basename(download_path),
+                                    )
+                                    writemsg_stdout(
+                                        _("Refetching... " "File renamed to '%s'\n\n")
+                                        % temp_filename,
                                         noiselevel=-1,
                                     )
-                                    writemsg(
-                                        _("!!! Reason: %s\n") % reason[0], noiselevel=-1
-                                    )
-                                    writemsg(
-                                        _("!!! Got:      %s\n!!! Expected: %s\n")
-                                        % (reason[1], reason[2]),
-                                        noiselevel=-1,
-                                    )
-                                    if reason[0] == _(
-                                        "Insufficient data for checksum verification"
-                                    ):
-                                        return 0
-                                    if distdir_writable:
-                                        temp_filename = _checksum_failure_temp_file(
-                                            mysettings,
-                                            mysettings["DISTDIR"],
-                                            os.path.basename(download_path),
-                                        )
-                                        writemsg_stdout(
-                                            _(
-                                                "Refetching... "
-                                                "File renamed to '%s'\n\n"
-                                            )
-                                            % temp_filename,
-                                            noiselevel=-1,
-                                        )
-                                    fetched = 0
-                                    checksum_failure_count += 1
-                                    if (
-                                        checksum_failure_count
-                                        == checksum_failure_primaryuri
-                                    ):
-                                        # Switch to "primaryuri" mode in order
-                                        # to increase the probablility of
-                                        # of success.
-                                        primaryuris = primaryuri_dict.get(myfile)
-                                        if primaryuris:
-                                            uri_list.extend(reversed(primaryuris))
-                                    if (
-                                        checksum_failure_count
-                                        >= checksum_failure_max_tries
-                                    ):
-                                        break
-                                else:
-                                    if not fetch_to_ro:
-                                        _movefile(
-                                            download_path,
-                                            myfile_path,
-                                            mysettings=mysettings,
-                                        )
-                                    eout = EOutput()
-                                    eout.quiet = (
-                                        mysettings.get("PORTAGE_QUIET", None) == "1"
-                                    )
-                                    if digests:
-                                        eout.ebegin(
-                                            f"{myfile} {' '.join(sorted(digests))} ;-)"
-                                        )
-                                        eout.eend(0)
-                                    fetched = 2
+                                fetched = 0
+                                checksum_failure_count += 1
+                                if (
+                                    checksum_failure_count
+                                    == checksum_failure_primaryuri
+                                ):
+                                    # Switch to "primaryuri" mode in order
+                                    # to increase the probablility of
+                                    # of success.
+                                    primaryuris = primaryuri_dict.get(myfile)
+                                    if primaryuris:
+                                        uri_list.extend(reversed(primaryuris))
+                                if checksum_failure_count >= checksum_failure_max_tries:
                                     break
+                            else:
+                                if not fetch_to_ro:
+                                    _movefile(
+                                        download_path,
+                                        myfile_path,
+                                        mysettings=mysettings,
+                                    )
+                                eout = EOutput()
+                                eout.quiet = (
+                                    mysettings.get("PORTAGE_QUIET", None) == "1"
+                                )
+                                if digests:
+                                    eout.ebegin(
+                                        f"{myfile} {' '.join(sorted(digests))} ;-)"
+                                    )
+                                    eout.eend(0)
+                                fetched = 2
+                                break
                     else:  # no digests available
                         if not myret:
                             if not fetch_to_ro:
