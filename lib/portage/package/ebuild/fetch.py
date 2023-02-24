@@ -744,7 +744,7 @@ def get_mirror_url(mirror_url, filename, mysettings, cache_path=None):
         return mirror_url + "/distfiles/" + path
 
 
-@dataclass
+@dataclass(frozen=True)
 class FilesFetcherParameters:
     settings: config
     listonly: bool
@@ -755,6 +755,24 @@ class FilesFetcherParameters:
     digests: Optional[dict]
     allow_missing_digests: bool
     force: bool
+
+    def __post_init__(self):
+        self.validate_force_and_digests()
+
+    def validate_force_and_digests(self):
+        if self.force and self.digests:
+            raise PortageException(
+                _("fetch: force=True is not allowed when digests are provided")
+            )
+
+
+# Outline of new function:
+# def new_fetch(...):
+#     params = FilesFetcherParameters(...)
+#     fetcher = FilesFetcher(params)
+#     for ... in ...:
+#         fetcher.fetch(...)
+#     ...
 
 
 def fetch(
