@@ -1,4 +1,4 @@
-# Copyright 2010-2021 Gentoo Authors
+# Copyright 2010-2021, 2023 Gentoo Authors
 # Distributed under the terms of the GNU General Public License v2
 
 __all__ = ["fetch"]
@@ -15,7 +15,7 @@ import stat
 import sys
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, KW_ONLY
 from collections import OrderedDict
 from urllib.parse import urlparse
 from urllib.parse import quote as urlquote
@@ -81,6 +81,14 @@ from portage.process import spawn
 class FetchStatus(IntEnum):
     ERROR = 0
     OK = 1
+
+
+class FilesFetcherValidationError(Exception):  # PortageException?
+    """If the provided fetching parameters are not valid."""
+
+
+class FetchingUnnecessary(Exception):  # PortageException?
+    """If the fetching parameters tell that must not fetch any file."""
 
 
 _download_suffix = ".__download__"
@@ -753,6 +761,7 @@ def get_mirror_url(mirror_url, filename, mysettings, cache_path=None):
 
 @dataclass(frozen=True)
 class FilesFetcherParameters:
+    _: KW_ONLY
     settings: config
     listonly: bool
     fetchonly: bool
@@ -773,12 +782,36 @@ class FilesFetcherParameters:
             )
 
 
-# Outline of new function:
-# def new_fetch(...):
-#     try:
-#         params = FilesFetcherParameters(...)
-#     except FilesFetcherValidationError:
-#         return FetchStatus.ERROR
+def new_fetch(
+    myuris,
+    mysettings,
+    listonly=0,
+    fetchonly=0,
+    locks_in_subdir=".locks",
+    use_locks=1,
+    try_mirrors=1,
+    digests=None,
+    allow_missing_digests=True,
+    force=False,
+):
+    try:
+        FilesFetcherParameters(
+            settings=mysettings,
+            listonly=listonly,
+            fetchonly=fetchonly,
+            locks_in_subdir=locks_in_subdir,
+            use_locks=use_locks,
+            try_mirrors=try_mirrors,
+            digests=digests,
+            allow_missing_digests=allow_missing_digests,
+            force=force,
+        )
+    except FilesFetcherValidationError:
+        return FetchStatus.ERROR
+    except FetchingUnnecessary:
+        return FetchStatus.OK
+
+
 #     fetcher = FilesFetcher(params)
 #     for ... in ...:
 #         fetcher.fetch(...)
