@@ -20,6 +20,7 @@ from collections import OrderedDict
 from urllib.parse import urlparse
 from urllib.parse import quote as urlquote
 from typing import Optional
+from enum import IntEnum
 
 import portage
 
@@ -75,6 +76,12 @@ from portage.util import (
     writemsg_stdout,
 )
 from portage.process import spawn
+
+
+class FetchStatus(IntEnum):
+    ERROR = 0
+    OK = 1
+
 
 _download_suffix = ".__download__"
 
@@ -768,7 +775,10 @@ class FilesFetcherParameters:
 
 # Outline of new function:
 # def new_fetch(...):
-#     params = FilesFetcherParameters(...)
+#     try:
+#         params = FilesFetcherParameters(...)
+#     except FilesFetcherValidationError:
+#         return FetchStatus.ERROR
 #     fetcher = FilesFetcher(params)
 #     for ... in ...:
 #         fetcher.fetch(...)

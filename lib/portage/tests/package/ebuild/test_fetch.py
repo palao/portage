@@ -8,9 +8,19 @@
 
 import unittest
 
-from portage.package.ebuild.fetch import FilesFetcherParameters
+from portage.package.ebuild.fetch import FilesFetcherParameters, FetchStatus
 from portage.exception import PortageException
 from portage.localization import _
+
+
+class FetchStatusTestCase(unittest.TestCase):
+    """The main purpose of testing ``FetchStatus`` is to ensure
+    backwards compatibility in the values.
+    """
+
+    def test_values(self):
+        self.assertEqual(FetchStatus.OK, 1)
+        self.assertEqual(FetchStatus.ERROR, 0)
 
 
 class FilesFetcherParametersTestCase(unittest.TestCase):
