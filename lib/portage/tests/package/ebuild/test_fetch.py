@@ -113,6 +113,40 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
                 False,
             )
 
+    def test_features_comes_directly_from_settings(self):
+        settings = Mock()
+        params = FilesFetcherParameters(
+            settings=settings,
+            listonly=0,
+            fetchonly=0,
+            locks_in_subdir=".locks",
+            use_locks=1,
+            try_mirrors=1,
+            digests=None,
+            allow_missing_digests=True,
+            force=False,
+        )
+        self.assertEqual(params.features, settings.features)
+
+    def test_restrict_attribute(self):
+        settings = {}
+        params = FilesFetcherParameters(
+            settings=settings,
+            listonly=0,
+            fetchonly=0,
+            locks_in_subdir=".locks",
+            use_locks=1,
+            try_mirrors=1,
+            digests=None,
+            allow_missing_digests=True,
+            force=False,
+        )
+        self.assertEqual(params.restrict, [])
+        settings["PORTAGE_RESTRICT"] = "abc"
+        self.assertEqual(params.restrict, ["abc"])
+        settings["PORTAGE_RESTRICT"] = "aaa bbb"
+        self.assertEqual(params.restrict, ["aaa", "bbb"])
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):
@@ -159,6 +193,33 @@ class FetchTestCase(unittest.TestCase):
             allow_missing_digests=mallow_missing_digests,
             force=mforce,
         )
+
+    def test_creates_a_fetcher(self, mparams, mfetcher):
+        mmyuris = Mock()
+        msettings = Mock()
+        mlistonly = Mock()
+        mfetchonly = Mock()
+        mlocks_in_subdir = Mock()
+        muse_locks = Mock()
+        mtry_mirrors = Mock()
+        mdigests = Mock()
+        mallow_missing_digests = Mock()
+        mforce = Mock()
+
+        new_fetch(
+            mmyuris,
+            msettings,
+            mlistonly,
+            mfetchonly,
+            mlocks_in_subdir,
+            muse_locks,
+            mtry_mirrors,
+            mdigests,
+            mallow_missing_digests,
+            mforce,
+        )
+
+        mfetcher.assert_called_once_with(mmyuris, mparams.return_value)
 
     def test_functions_has_some_defaults(self, mparams, mfetcher):
         mmyuris = Mock()

@@ -786,6 +786,14 @@ class FilesFetcherParameters:
                 _("fetch: force=True is not allowed when digests are provided")
             )
 
+    @property
+    def features(self):
+        return self.settings.features
+
+    @property
+    def restrict(self):
+        return self.settings.get("PORTAGE_RESTRICT", "").split()
+
 
 class FilesFetcher:
     """This class is in charge of all the logic related to fetching URIs given
@@ -810,7 +818,7 @@ def new_fetch(
     force=False,
 ):
     try:
-        FilesFetcherParameters(
+        fetch_params = FilesFetcherParameters(
             settings=mysettings,
             listonly=listonly,
             fetchonly=fetchonly,
@@ -821,6 +829,7 @@ def new_fetch(
             allow_missing_digests=allow_missing_digests,
             force=force,
         )
+        FilesFetcher(myuris, fetch_params)
     except FilesFetcherValidationError:
         return FetchStatus.ERROR
     except FetchingUnnecessary:
