@@ -17,6 +17,7 @@ import tempfile
 import time
 from dataclasses import dataclass, KW_ONLY
 from collections import OrderedDict
+from collections.abc import Mapping
 from urllib.parse import urlparse
 from urllib.parse import quote as urlquote
 from typing import Optional
@@ -761,6 +762,10 @@ def get_mirror_url(mirror_url, filename, mysettings, cache_path=None):
 
 @dataclass(frozen=True)
 class FilesFetcherParameters:
+    """This class' responsability is to be a provider of the parameters
+    needed to fetch URIs. It includes a layer of validation.
+    """
+
     _: KW_ONLY
     settings: config
     listonly: bool
@@ -780,6 +785,16 @@ class FilesFetcherParameters:
             raise PortageException(
                 _("fetch: force=True is not allowed when digests are provided")
             )
+
+
+class FilesFetcher:
+    """This class is in charge of all the logic related to fetching URIs given
+    a valid set of parameters (``FilesFetcherParameters``).
+    """
+
+    def __init__(self, uris: Mapping, params: FilesFetcherParameters):
+        if not uris:
+            raise FetchingUnnecessary()
 
 
 def new_fetch(

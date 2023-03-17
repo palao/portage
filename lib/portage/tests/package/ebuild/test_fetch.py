@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 from portage.package.ebuild.fetch import (
     FilesFetcherParameters,
+    FilesFetcher,
     FetchStatus,
     new_fetch,
     FilesFetcherValidationError,
@@ -113,9 +114,16 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
             )
 
 
+class FilesFetcherTestCase(unittest.TestCase):
+    def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):
+        with self.assertRaises(FetchingUnnecessary):
+            FilesFetcher({}, Mock())
+
+
+@patch("portage.package.ebuild.fetch.FilesFetcher")
 @patch("portage.package.ebuild.fetch.FilesFetcherParameters")
 class FetchTestCase(unittest.TestCase):
-    def test_creates_params(self, mparams):
+    def test_creates_params(self, mparams, mfetcher):
         mmyuris = Mock()
         msettings = Mock()
         mlistonly = Mock()
@@ -152,7 +160,7 @@ class FetchTestCase(unittest.TestCase):
             force=mforce,
         )
 
-    def test_functions_has_some_defaults(self, mparams):
+    def test_functions_has_some_defaults(self, mparams, mfetcher):
         mmyuris = Mock()
         msettings = Mock()
 
@@ -170,7 +178,7 @@ class FetchTestCase(unittest.TestCase):
             force=False,
         )
 
-    def test_return_error_on_validation_error(self, mparams):
+    def test_return_error_on_validation_error(self, mparams, mfetcher):
         mparams.side_effect = FilesFetcherValidationError()
         mmyuris = Mock()
         msettings = Mock()
@@ -180,7 +188,7 @@ class FetchTestCase(unittest.TestCase):
             FetchStatus.ERROR,
         )
 
-    def test_return_ok_in_trivial_cases(self, mparams):
+    def test_return_ok_in_trivial_cases(self, mparams, mfetcher):
         mparams.side_effect = FetchingUnnecessary()
         mmyuris = Mock()
         msettings = Mock()
