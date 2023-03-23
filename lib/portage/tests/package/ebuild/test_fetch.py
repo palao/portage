@@ -19,6 +19,7 @@ from portage.package.ebuild.fetch import (
 )
 from portage.exception import PortageException
 from portage.localization import _
+import portage.data
 
 
 class FetchStatusTestCase(unittest.TestCase):
@@ -32,34 +33,42 @@ class FetchStatusTestCase(unittest.TestCase):
 
 
 class FilesFetcherParametersTestCase(unittest.TestCase):
+    def make_instance(self, **kwords):
+        """Auxiliary method. It takes arbitrary keyword arguments for
+        simplicity, but it is expected that only arguments allowed in the
+        construction of the ``FilesFetcherParameters`` instance are passed.
+        """
+        kwargs = {
+            "settings": Mock(),
+            "listonly": 0,
+            "fetchonly": 0,
+            "locks_in_subdir": ".locks",
+            "use_locks": 1,
+            "try_mirrors": 1,
+            "digests": None,
+            "allow_missing_digests": True,
+            "force": False,
+        }
+        kwargs.update(kwords)
+        return FilesFetcherParameters(**kwargs)
+
     def test_instance_has_expected_attributes(self):
-        params = FilesFetcherParameters(
-            settings={},
-            listonly=0,
-            fetchonly=0,
-            locks_in_subdir=".locks",
-            use_locks=1,
-            try_mirrors=1,
-            digests={"green": {"a/b": "25"}},
-            allow_missing_digests=True,
-            force=False,
-        )
-        self.assertEqual(params.force, False)
-        self.assertEqual(params.digests, {"green": {"a/b": "25"}})
+        fake_digests = {"green": {"a/b": "25"}}
+        fake_settings = {}
+        params = self.make_instance(settings={}, digests=fake_digests)
+        self.assertEqual(params.settings, fake_settings)
+        self.assertFalse(params.listonly)
+        self.assertFalse(params.fetchonly)
+        self.assertEqual(params.locks_in_subdir, ".locks")
+        self.assertTrue(params.use_locks)
+        self.assertTrue(params.try_mirrors)
+        self.assertEqual(params.digests, fake_digests)
+        self.assertTrue(params.allow_missing_digests)
+        self.assertFalse(params.force)
 
     def test_inconsistent_force_and_digests(self):
         with self.assertRaises(PortageException) as cm:
-            FilesFetcherParameters(
-                settings={},
-                listonly=0,
-                fetchonly=0,
-                locks_in_subdir=".locks",
-                use_locks=1,
-                try_mirrors=1,
-                digests={"green": {"a/b": "25"}},
-                allow_missing_digests=True,
-                force=True,
-            )
+            self.make_instance(digests={"green": {"a/b": "25"}}, force=True)
         self.assertEqual(
             str(cm.exception),
             _("fetch: force=True is not allowed when digests are provided"),
@@ -70,17 +79,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         in time. To simplify the logic, it is required that once the
         instance is created, the params cannot be changed.
         """
-        params = FilesFetcherParameters(
-            settings={},
-            listonly=0,
-            fetchonly=0,
-            locks_in_subdir=".locks",
-            use_locks=1,
-            try_mirrors=1,
-            digests=None,
-            allow_missing_digests=True,
-            force=False,
-        )
+        params = self.make_instance()
         for attr in params.__dict__.keys():
             with self.assertRaises(AttributeError):
                 setattr(params, attr, "whatever")
@@ -89,7 +88,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         """Why this test? The constructor accepts too many parameters.
         To avoid confusion, we require that they are keyword only."""
         with self.assertRaises(TypeError):
-            params = FilesFetcherParameters(
+            FilesFetcherParameters(
                 {},
                 listonly=0,
                 fetchonly=0,
@@ -101,7 +100,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
                 force=False,
             )
         with self.assertRaises(TypeError):
-            params = FilesFetcherParameters(
+            FilesFetcherParameters(
                 {},
                 0,
                 0,
@@ -115,37 +114,28 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
 
     def test_features_comes_directly_from_settings(self):
         settings = Mock()
-        params = FilesFetcherParameters(
-            settings=settings,
-            listonly=0,
-            fetchonly=0,
-            locks_in_subdir=".locks",
-            use_locks=1,
-            try_mirrors=1,
-            digests=None,
-            allow_missing_digests=True,
-            force=False,
-        )
+        params = self.make_instance(settings=settings)
         self.assertEqual(params.features, settings.features)
 
     def test_restrict_attribute(self):
         settings = {}
-        params = FilesFetcherParameters(
-            settings=settings,
-            listonly=0,
-            fetchonly=0,
-            locks_in_subdir=".locks",
-            use_locks=1,
-            try_mirrors=1,
-            digests=None,
-            allow_missing_digests=True,
-            force=False,
-        )
+        params = self.make_instance(settings=settings)
         self.assertEqual(params.restrict, [])
         settings["PORTAGE_RESTRICT"] = "abc"
         self.assertEqual(params.restrict, ["abc"])
         settings["PORTAGE_RESTRICT"] = "aaa bbb"
         self.assertEqual(params.restrict, ["aaa", "bbb"])
+
+    def test_userfetch_attribute(self):
+        settings = Mock()
+        settings.features = set()
+        params = self.make_instance(settings=settings)
+        portage.data.secpass = 2
+        self.assertFalse(params.userfetch)
+        settings.features.add("userfetch")
+        self.assertTrue(params.userfetch)
+        portage.data.secpass = 1
+        self.assertFalse(params.userfetch)
 
 
 class FilesFetcherTestCase(unittest.TestCase):

@@ -77,6 +77,7 @@ from portage.util import (
     writemsg_stdout,
 )
 from portage.process import spawn
+from portage.package.ebuild._config.features_set import features_set
 
 
 class FetchStatus(IntEnum):
@@ -764,6 +765,8 @@ def get_mirror_url(mirror_url, filename, mysettings, cache_path=None):
 class FilesFetcherParameters:
     """This class' responsability is to be a provider of the parameters
     needed to fetch URIs. It includes a layer of validation.
+
+    Its main (only?) customer is the ``FilesFetcher`` class.
     """
 
     _: KW_ONLY
@@ -787,12 +790,16 @@ class FilesFetcherParameters:
             )
 
     @property
-    def features(self):
+    def features(self) -> features_set:
         return self.settings.features
 
     @property
-    def restrict(self):
+    def restrict(self) -> list[str]:
         return self.settings.get("PORTAGE_RESTRICT", "").split()
+
+    @property
+    def userfetch(self) -> bool:
+        return portage.data.secpass >= 2 and "userfetch" in self.features
 
 
 class FilesFetcher:
