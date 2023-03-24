@@ -782,12 +782,22 @@ class FilesFetcherParameters:
 
     def __post_init__(self):
         self.validate_force_and_digests()
+        self.validate_restrict_mirror()
 
     def validate_force_and_digests(self):
         if self.force and self.digests:
             raise PortageException(
                 _("fetch: force=True is not allowed when digests are provided")
             )
+
+    def validate_restrict_mirror(self):
+        if self.restrict_mirror:
+            if ("mirror" in self.features) and ("lmirror" not in self.features):
+                writemsg_stdout(
+                    '>>> "mirror" mode desired and "mirror" restriction found; skipping fetch.',
+                    noiselevel=-1
+                )
+                raise FetchingUnnecessary()
 
     @property
     def features(self) -> features_set:
@@ -800,6 +810,11 @@ class FilesFetcherParameters:
     @property
     def userfetch(self) -> bool:
         return portage.data.secpass >= 2 and "userfetch" in self.features
+
+    @property
+    def restrict_mirror(self) -> bool:
+        # 'nomirror' is bad/negative logic. You Restrict mirroring, not no-mirroring.
+        return "mirror" in self.restrict or "nomirror" in self.restrict
 
 
 class FilesFetcher:

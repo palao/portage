@@ -8,6 +8,7 @@
 
 import unittest
 from unittest.mock import Mock, patch
+from typing import Optional
 
 from portage.package.ebuild.fetch import (
     FilesFetcherParameters,
@@ -20,6 +21,24 @@ from portage.package.ebuild.fetch import (
 from portage.exception import PortageException
 from portage.localization import _
 import portage.data
+
+
+class FakePortageConfig:
+    """A very simplified implementation of a Portage config object with
+    functionality relevant only for the tests in the current file.
+    """
+    def __init__(self, features: Optional[set]=None, **kwargs) -> None:
+        if not features:
+            features = set()
+        self._features = features
+        self.dict = kwargs
+
+    @property
+    def features(self) -> set:
+        return self._features
+
+    def get(self, key, default) -> str:
+        return self.dict.get(key, default)
 
 
 class FetchStatusTestCase(unittest.TestCase):
@@ -39,7 +58,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         construction of the ``FilesFetcherParameters`` instance are passed.
         """
         kwargs = {
-            "settings": Mock(),
+            "settings": FakePortageConfig(),
             "listonly": 0,
             "fetchonly": 0,
             "locks_in_subdir": ".locks",
@@ -54,8 +73,9 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
 
     def test_instance_has_expected_attributes(self):
         fake_digests = {"green": {"a/b": "25"}}
-        fake_settings = {}
-        params = self.make_instance(settings={}, digests=fake_digests)
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(
+            settings=fake_settings, digests=fake_digests)
         self.assertEqual(params.settings, fake_settings)
         self.assertFalse(params.listonly)
         self.assertFalse(params.fetchonly)
@@ -113,29 +133,61 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
             )
 
     def test_features_comes_directly_from_settings(self):
-        settings = Mock()
+        settings = FakePortageConfig()
         params = self.make_instance(settings=settings)
         self.assertEqual(params.features, settings.features)
 
     def test_restrict_attribute(self):
-        settings = {}
+        settings = FakePortageConfig()
         params = self.make_instance(settings=settings)
         self.assertEqual(params.restrict, [])
-        settings["PORTAGE_RESTRICT"] = "abc"
+        settings.dict["PORTAGE_RESTRICT"] = "abc"
         self.assertEqual(params.restrict, ["abc"])
-        settings["PORTAGE_RESTRICT"] = "aaa bbb"
+        settings.dict["PORTAGE_RESTRICT"] = "aaa bbb"
         self.assertEqual(params.restrict, ["aaa", "bbb"])
 
     def test_userfetch_attribute(self):
-        settings = Mock()
-        settings.features = set()
+        settings = FakePortageConfig()
         params = self.make_instance(settings=settings)
+        # monkey patching "portage.data.secpass":
+        secpass_orig = portage.data.secpass
         portage.data.secpass = 2
         self.assertFalse(params.userfetch)
         settings.features.add("userfetch")
         self.assertTrue(params.userfetch)
         portage.data.secpass = 1
         self.assertFalse(params.userfetch)
+        portage.data.secpass = secpass_orig
+
+    def test_restrict_mirror_attribute(self):
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(settings=fake_settings)
+        self.assertFalse(params.restrict_mirror)
+        fake_settings.dict["PORTAGE_RESTRICT"] = "mirror nomirror"
+        self.assertTrue(params.restrict_mirror)
+        fake_settings.dict["PORTAGE_RESTRICT"] = "mirror"
+        self.assertTrue(params.restrict_mirror)
+        fake_settings.dict["PORTAGE_RESTRICT"] = "nomirror"
+        self.assertTrue(params.restrict_mirror)
+
+    @patch("portage.package.ebuild.fetch.writemsg_stdout")
+    def test_validate_restrict_mirror(self, pwritemsg_stdout):
+        fake_settings = FakePortageConfig(
+            features={"mirror"}, PORTAGE_RESTRICT="mirror")
+        with self.assertRaises(FetchingUnnecessary):
+            params = self.make_instance(settings=fake_settings)
+        pwritemsg_stdout.assert_called_once_with(
+            '>>> "mirror" mode desired and "mirror" restriction found; skipping fetch.',
+            noiselevel=-1
+        )
+
+    @patch("portage.package.ebuild.fetch.writemsg_stdout")
+    def test_lmirror_bypasses_mirror_restrictions(self, pwritemsg_stdout):
+        fake_settings = FakePortageConfig(
+            features={"mirror", "lmirror"}, PORTAGE_RESTRICT="mirror")
+        # the next does not raise:
+        params = self.make_instance(settings=fake_settings)
+        pwritemsg_stdout.assert_not_called()
 
 
 class FilesFetcherTestCase(unittest.TestCase):
