@@ -80,6 +80,9 @@ from portage.process import spawn
 from portage.package.ebuild._config.features_set import features_set
 
 
+DEFAULT_CHECKSUM_FAILURES_MAX_TRIES = 5
+
+
 class FetchStatus(IntEnum):
     ERROR = 0
     OK = 1
@@ -795,7 +798,7 @@ class FilesFetcherParameters:
             if ("mirror" in self.features) and ("lmirror" not in self.features):
                 writemsg_stdout(
                     '>>> "mirror" mode desired and "mirror" restriction found; skipping fetch.',
-                    noiselevel=-1
+                    noiselevel=-1,
                 )
                 raise FetchingUnnecessary()
 
@@ -815,6 +818,50 @@ class FilesFetcherParameters:
     def restrict_mirror(self) -> bool:
         # 'nomirror' is bad/negative logic. You Restrict mirroring, not no-mirroring.
         return "mirror" in self.restrict or "nomirror" in self.restrict
+
+    @functools.cached_property
+    def checksum_failure_max_tries(self) -> int:
+        """It limits how many times a file is tried to be downloaded.
+
+        Generally, downloading the same file repeatedly from
+        every single available mirror is a waste of bandwidth
+        and time, so there needs to be a cap.
+        """
+
+        value = self.settings.get("PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS", None)
+        try:
+            value = int(value)
+        except (ValueError, OverflowError, TypeError):
+            # OverflowError should not be raised here by CPython...
+            # (see https://docs.python.org/3/library/exceptions.html#OverflowError)
+            # But maybe other Python implementations can raise it?
+            writemsg(
+                _(
+                    "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
+                    f" contains non-integer value: '{value}'\n"
+                ),
+                noiselevel=-1,
+            )
+            value = None
+        if value and value < 1:
+            writemsg(
+                _(
+                    "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
+                    f" contains value less than 1: '{value}'\n"
+                ),
+                noiselevel=-1,
+            )
+            value = None
+        if value is None:
+            value = DEFAULT_CHECKSUM_FAILURES_MAX_TRIES
+            writemsg(
+                _(
+                    "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
+                    f"default value: {value}\n"
+                ),
+                noiselevel=-1,
+            )
+        return value
 
 
 class FilesFetcher:

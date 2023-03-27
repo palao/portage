@@ -7,7 +7,7 @@
 """
 
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, call
 from typing import Optional
 
 from portage.package.ebuild.fetch import (
@@ -17,6 +17,7 @@ from portage.package.ebuild.fetch import (
     new_fetch,
     FilesFetcherValidationError,
     FetchingUnnecessary,
+    DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
 )
 from portage.exception import PortageException
 from portage.localization import _
@@ -27,7 +28,8 @@ class FakePortageConfig:
     """A very simplified implementation of a Portage config object with
     functionality relevant only for the tests in the current file.
     """
-    def __init__(self, features: Optional[set]=None, **kwargs) -> None:
+
+    def __init__(self, features: Optional[set] = None, **kwargs) -> None:
         if not features:
             features = set()
         self._features = features
@@ -74,8 +76,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
     def test_instance_has_expected_attributes(self):
         fake_digests = {"green": {"a/b": "25"}}
         fake_settings = FakePortageConfig()
-        params = self.make_instance(
-            settings=fake_settings, digests=fake_digests)
+        params = self.make_instance(settings=fake_settings, digests=fake_digests)
         self.assertEqual(params.settings, fake_settings)
         self.assertFalse(params.listonly)
         self.assertFalse(params.fetchonly)
@@ -173,21 +174,99 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
     @patch("portage.package.ebuild.fetch.writemsg_stdout")
     def test_validate_restrict_mirror(self, pwritemsg_stdout):
         fake_settings = FakePortageConfig(
-            features={"mirror"}, PORTAGE_RESTRICT="mirror")
+            features={"mirror"}, PORTAGE_RESTRICT="mirror"
+        )
         with self.assertRaises(FetchingUnnecessary):
             params = self.make_instance(settings=fake_settings)
         pwritemsg_stdout.assert_called_once_with(
             '>>> "mirror" mode desired and "mirror" restriction found; skipping fetch.',
-            noiselevel=-1
+            noiselevel=-1,
         )
 
     @patch("portage.package.ebuild.fetch.writemsg_stdout")
     def test_lmirror_bypasses_mirror_restrictions(self, pwritemsg_stdout):
         fake_settings = FakePortageConfig(
-            features={"mirror", "lmirror"}, PORTAGE_RESTRICT="mirror")
+            features={"mirror", "lmirror"}, PORTAGE_RESTRICT="mirror"
+        )
         # the next does not raise:
         params = self.make_instance(settings=fake_settings)
         pwritemsg_stdout.assert_not_called()
+
+    def test_checksum_failure_max_tries(self):
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(settings=fake_settings)
+        self.assertEqual(
+            params.checksum_failure_max_tries,
+            DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
+        )
+        fake_settings.dict["PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"] = "23"
+        params = self.make_instance(settings=fake_settings)
+        self.assertEqual(params.checksum_failure_max_tries, 23)
+
+    @patch("portage.package.ebuild.fetch.writemsg")
+    def test_wrong_checksum_failure_max_tries(self, pwritemsg):
+        fake_settings = FakePortageConfig(PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS="none")
+        params = self.make_instance(settings=fake_settings)
+        self.assertEqual(
+            params.checksum_failure_max_tries,
+            DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
+        )
+        pwritemsg.assert_has_calls(
+            [
+                call(
+                    _(
+                        "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
+                        " contains non-integer value: 'none'\n"
+                    ),
+                    noiselevel=-1,
+                ),
+                call(
+                    _(
+                        "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
+                        f"default value: {DEFAULT_CHECKSUM_FAILURES_MAX_TRIES}\n"
+                    ),
+                    noiselevel=-1,
+                ),
+            ]
+        )
+
+        pwritemsg.reset_mock()
+        fake_settings.dict["PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"] = "-2"
+        params = self.make_instance(settings=fake_settings)
+
+        self.assertEqual(
+            params.checksum_failure_max_tries,
+            DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
+        )
+        pwritemsg.assert_has_calls(
+            [
+                call(
+                    _(
+                        "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
+                        " contains value less than 1: '-2'\n"
+                    ),
+                    noiselevel=-1,
+                ),
+                call(
+                    _(
+                        "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
+                        f"default value: {DEFAULT_CHECKSUM_FAILURES_MAX_TRIES}\n"
+                    ),
+                    noiselevel=-1,
+                ),
+            ]
+        )
+
+    @patch("portage.package.ebuild.fetch.writemsg")
+    def test_only_one_msg_if_wrong_checksum_failure_max_tries(self, pwritemsg):
+        fake_settings = FakePortageConfig(PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS="x")
+        params = self.make_instance(settings=fake_settings)
+        # this line will print some messages:
+        params.checksum_failure_max_tries
+        pwritemsg.reset_mock()
+        # But the second line the attribute is accessed no msg is printed:
+        params.checksum_failure_max_tries
+        pwritemsg.assert_not_called()
 
 
 class FilesFetcherTestCase(unittest.TestCase):
