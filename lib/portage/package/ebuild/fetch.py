@@ -764,153 +764,6 @@ def get_mirror_url(mirror_url, filename, mysettings, cache_path=None):
         return mirror_url + "/distfiles/" + path
 
 
-@dataclass(frozen=True)
-class FilesFetcherParameters:
-    """This class' responsability is to be a provider of the parameters
-    needed to fetch URIs. It includes a layer of validation.
-
-    Its main (only?) customer is the ``FilesFetcher`` class.
-    """
-
-    _: KW_ONLY
-    settings: config
-    listonly: bool
-    fetchonly: bool
-    locks_in_subdir: str
-    use_locks: bool
-    try_mirrors: bool
-    digests: Optional[dict]
-    allow_missing_digests: bool
-    force: bool
-
-    def __post_init__(self):
-        self.validate_force_and_digests()
-        self.validate_restrict_mirror()
-
-    def validate_force_and_digests(self):
-        if self.force and self.digests:
-            raise PortageException(
-                _("fetch: force=True is not allowed when digests are provided")
-            )
-
-    def validate_restrict_mirror(self):
-        if self.restrict_mirror:
-            if ("mirror" in self.features) and ("lmirror" not in self.features):
-                writemsg_stdout(
-                    '>>> "mirror" mode desired and "mirror" restriction found; skipping fetch.',
-                    noiselevel=-1,
-                )
-                raise FetchingUnnecessary()
-
-    @property
-    def features(self) -> features_set:
-        return self.settings.features
-
-    @property
-    def restrict(self) -> list[str]:
-        return self.settings.get("PORTAGE_RESTRICT", "").split()
-
-    @property
-    def userfetch(self) -> bool:
-        return portage.data.secpass >= 2 and "userfetch" in self.features
-
-    @property
-    def restrict_mirror(self) -> bool:
-        # 'nomirror' is bad/negative logic. You Restrict mirroring, not no-mirroring.
-        return "mirror" in self.restrict or "nomirror" in self.restrict
-
-    @functools.cached_property
-    def checksum_failure_max_tries(self) -> int:
-        """It limits how many times a file is tried to be downloaded.
-
-        Generally, downloading the same file repeatedly from
-        every single available mirror is a waste of bandwidth
-        and time, so there needs to be a cap.
-        """
-
-        value = self.settings.get("PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS", None)
-        try:
-            value = int(value)
-        except (ValueError, OverflowError, TypeError):
-            # OverflowError should not be raised here by CPython...
-            # (see https://docs.python.org/3/library/exceptions.html#OverflowError)
-            # But maybe other Python implementations can raise it?
-            writemsg(
-                _(
-                    "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
-                    f" contains non-integer value: '{value}'\n"
-                ),
-                noiselevel=-1,
-            )
-            value = None
-        if value and value < 1:
-            writemsg(
-                _(
-                    "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
-                    f" contains value less than 1: '{value}'\n"
-                ),
-                noiselevel=-1,
-            )
-            value = None
-        if value is None:
-            value = DEFAULT_CHECKSUM_FAILURES_MAX_TRIES
-            writemsg(
-                _(
-                    "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
-                    f"default value: {value}\n"
-                ),
-                noiselevel=-1,
-            )
-        return value
-
-
-class FilesFetcher:
-    """This class is in charge of all the logic related to fetching URIs given
-    a valid set of parameters (``FilesFetcherParameters``).
-    """
-
-    def __init__(self, uris: Mapping, params: FilesFetcherParameters):
-        if not uris:
-            raise FetchingUnnecessary()
-
-
-def new_fetch(
-    myuris,
-    mysettings,
-    listonly=0,
-    fetchonly=0,
-    locks_in_subdir=".locks",
-    use_locks=1,
-    try_mirrors=1,
-    digests=None,
-    allow_missing_digests=True,
-    force=False,
-):
-    try:
-        fetch_params = FilesFetcherParameters(
-            settings=mysettings,
-            listonly=listonly,
-            fetchonly=fetchonly,
-            locks_in_subdir=locks_in_subdir,
-            use_locks=use_locks,
-            try_mirrors=try_mirrors,
-            digests=digests,
-            allow_missing_digests=allow_missing_digests,
-            force=force,
-        )
-        FilesFetcher(myuris, fetch_params)
-    except FilesFetcherValidationError:
-        return FetchStatus.ERROR
-    except FetchingUnnecessary:
-        return FetchStatus.OK
-
-
-#     fetcher = FilesFetcher(params)
-#     for ... in ...:
-#         fetcher.fetch(...)
-#     ...
-
-
 def fetch(
     myuris,
     mysettings,
@@ -2155,3 +2008,150 @@ def fetch(
     if failed_files:
         return 0
     return 1
+
+
+@dataclass(frozen=True)
+class FilesFetcherParameters:
+    """This class' responsability is to be a provider of the parameters
+    needed to fetch URIs. It includes a layer of validation.
+
+    Its main (only?) customer is the ``FilesFetcher`` class.
+    """
+
+    _: KW_ONLY
+    settings: config
+    listonly: bool
+    fetchonly: bool
+    locks_in_subdir: str
+    use_locks: bool
+    try_mirrors: bool
+    digests: Optional[dict]
+    allow_missing_digests: bool
+    force: bool
+
+    def __post_init__(self):
+        self.validate_force_and_digests()
+        self.validate_restrict_mirror()
+
+    def validate_force_and_digests(self):
+        if self.force and self.digests:
+            raise PortageException(
+                _("fetch: force=True is not allowed when digests are provided")
+            )
+
+    def validate_restrict_mirror(self):
+        if self.restrict_mirror:
+            if ("mirror" in self.features) and ("lmirror" not in self.features):
+                writemsg_stdout(
+                    '>>> "mirror" mode desired and "mirror" restriction found; skipping fetch.',
+                    noiselevel=-1,
+                )
+                raise FetchingUnnecessary()
+
+    @property
+    def features(self) -> features_set:
+        return self.settings.features
+
+    @property
+    def restrict(self) -> list[str]:
+        return self.settings.get("PORTAGE_RESTRICT", "").split()
+
+    @property
+    def userfetch(self) -> bool:
+        return portage.data.secpass >= 2 and "userfetch" in self.features
+
+    @property
+    def restrict_mirror(self) -> bool:
+        # 'nomirror' is bad/negative logic. You Restrict mirroring, not no-mirroring.
+        return "mirror" in self.restrict or "nomirror" in self.restrict
+
+    @functools.cached_property
+    def checksum_failure_max_tries(self) -> int:
+        """It limits how many times a file is tried to be downloaded.
+
+        Generally, downloading the same file repeatedly from
+        every single available mirror is a waste of bandwidth
+        and time, so there needs to be a cap.
+        """
+
+        value = self.settings.get("PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS", None)
+        try:
+            value = int(value)
+        except (ValueError, OverflowError, TypeError):
+            # OverflowError should not be raised here by CPython...
+            # (see https://docs.python.org/3/library/exceptions.html#OverflowError)
+            # But maybe other Python implementations can raise it?
+            writemsg(
+                _(
+                    "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
+                    f" contains non-integer value: '{value}'\n"
+                ),
+                noiselevel=-1,
+            )
+            value = None
+        if value and value < 1:
+            writemsg(
+                _(
+                    "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
+                    f" contains value less than 1: '{value}'\n"
+                ),
+                noiselevel=-1,
+            )
+            value = None
+        if value is None:
+            value = DEFAULT_CHECKSUM_FAILURES_MAX_TRIES
+            writemsg(
+                _(
+                    "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
+                    f"default value: {value}\n"
+                ),
+                noiselevel=-1,
+            )
+        return value
+
+
+class FilesFetcher:
+    """This class is in charge of all the logic related to fetching URIs given
+    a valid set of parameters (``FilesFetcherParameters``).
+    """
+
+    def __init__(self, uris: Mapping, params: FilesFetcherParameters):
+        if not uris:
+            raise FetchingUnnecessary()
+
+
+def new_fetch(
+    myuris,
+    mysettings,
+    listonly=0,
+    fetchonly=0,
+    locks_in_subdir=".locks",
+    use_locks=1,
+    try_mirrors=1,
+    digests=None,
+    allow_missing_digests=True,
+    force=False,
+):
+    try:
+        fetch_params = FilesFetcherParameters(
+            settings=mysettings,
+            listonly=listonly,
+            fetchonly=fetchonly,
+            locks_in_subdir=locks_in_subdir,
+            use_locks=use_locks,
+            try_mirrors=try_mirrors,
+            digests=digests,
+            allow_missing_digests=allow_missing_digests,
+            force=force,
+        )
+        FilesFetcher(myuris, fetch_params)
+    except FilesFetcherValidationError:
+        return FetchStatus.ERROR
+    except FetchingUnnecessary:
+        return FetchStatus.OK
+
+
+#     fetcher = FilesFetcher(params)
+#     for ... in ...:
+#         fetcher.fetch(...)
+#     ...
