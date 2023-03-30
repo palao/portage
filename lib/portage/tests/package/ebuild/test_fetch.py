@@ -17,7 +17,7 @@ from portage.package.ebuild.fetch import (
     new_fetch,
     FilesFetcherValidationError,
     FetchingUnnecessary,
-    DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
+    _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
 )
 from portage.exception import PortageException
 from portage.localization import _
@@ -197,7 +197,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params = self.make_instance(settings=fake_settings)
         self.assertEqual(
             params.checksum_failure_max_tries,
-            DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
+            _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
         )
         fake_settings.dict["PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"] = "23"
         params = self.make_instance(settings=fake_settings)
@@ -209,7 +209,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params = self.make_instance(settings=fake_settings)
         self.assertEqual(
             params.checksum_failure_max_tries,
-            DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
+            _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
         )
         pwritemsg.assert_has_calls(
             [
@@ -223,7 +223,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
                 call(
                     _(
                         "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
-                        f"default value: {DEFAULT_CHECKSUM_FAILURES_MAX_TRIES}\n"
+                        f"default value: {_DEFAULT_CHECKSUM_FAILURES_MAX_TRIES}\n"
                     ),
                     noiselevel=-1,
                 ),
@@ -236,7 +236,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
 
         self.assertEqual(
             params.checksum_failure_max_tries,
-            DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
+            _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
         )
         pwritemsg.assert_has_calls(
             [
@@ -250,7 +250,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
                 call(
                     _(
                         "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
-                        f"default value: {DEFAULT_CHECKSUM_FAILURES_MAX_TRIES}\n"
+                        f"default value: {_DEFAULT_CHECKSUM_FAILURES_MAX_TRIES}\n"
                     ),
                     noiselevel=-1,
                 ),
@@ -261,10 +261,10 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
     def test_only_one_msg_if_wrong_checksum_failure_max_tries(self, pwritemsg):
         fake_settings = FakePortageConfig(PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS="x")
         params = self.make_instance(settings=fake_settings)
-        # this line will print some messages:
+        # This line will print some messages:
         params.checksum_failure_max_tries
         pwritemsg.reset_mock()
-        # But the second line the attribute is accessed no msg is printed:
+        # but the second time that the attr. is accessed, no msg is printed:
         params.checksum_failure_max_tries
         pwritemsg.assert_not_called()
 

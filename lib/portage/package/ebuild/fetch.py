@@ -80,7 +80,7 @@ from portage.process import spawn
 from portage.package.ebuild._config.features_set import features_set
 
 
-DEFAULT_CHECKSUM_FAILURES_MAX_TRIES = 5
+_DEFAULT_CHECKSUM_FAILURES_MAX_TRIES = 5
 
 
 class FetchStatus(IntEnum):
@@ -2099,7 +2099,7 @@ class FilesFetcherParameters:
             )
             value = None
         if value is None:
-            value = DEFAULT_CHECKSUM_FAILURES_MAX_TRIES
+            value = _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES
             writemsg(
                 _(
                     "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
