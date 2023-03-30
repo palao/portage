@@ -268,6 +268,11 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params.checksum_failure_max_tries
         pwritemsg.assert_not_called()
 
+    def test_fetch_resume_size_default_value(self):
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(settings=fake_settings)
+        self.assertEqual(params.fetch_resume_size, 358400)
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):

@@ -81,6 +81,7 @@ from portage.package.ebuild._config.features_set import features_set
 
 
 _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES = 5
+_DEFAULT_FETCH_RESUME_SIZE = "350K"
 
 
 class FetchStatus(IntEnum):
@@ -2107,6 +2108,13 @@ class FilesFetcherParameters:
                 ),
                 noiselevel=-1,
             )
+        return value
+
+    @property
+    def fetch_resume_size(self):
+        raw_value = _DEFAULT_FETCH_RESUME_SIZE
+        match = _fetch_resume_size_re.match(raw_value)
+        value = int(match.group(1)) * 2 ** _size_suffix_map[match.group(2).upper()]
         return value
 
 
