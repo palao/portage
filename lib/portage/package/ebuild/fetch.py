@@ -2138,10 +2138,33 @@ class FilesFetcherParameters:
             )
         return value
 
-    @property
+    @functools.cached_property
     def fetch_resume_size(self):
-        raw_value = _DEFAULT_FETCH_RESUME_SIZE
-        match = _fetch_resume_size_re.match(raw_value)
+        value = self.settings.get("PORTAGE_FETCH_RESUME_MIN_SIZE")
+        if value is not None:
+            value = "".join(value.split())
+            if not value:
+                # If it's undefined or empty, silently use the default.
+                value = _DEFAULT_FETCH_RESUME_SIZE
+            match = _fetch_resume_size_re.match(value)
+            if match is None or (match.group(2).upper() not in _size_suffix_map):
+                writemsg(
+                    _(
+                        "!!! Variable PORTAGE_FETCH_RESUME_MIN_SIZE"
+                        " contains an unrecognized format: '%s'\n"
+                    )
+                    % self.settings["PORTAGE_FETCH_RESUME_MIN_SIZE"],
+                    noiselevel=-1,
+                )
+                writemsg(
+                    _("!!! Using PORTAGE_FETCH_RESUME_MIN_SIZE " "default value: %s\n")
+                    % _DEFAULT_FETCH_RESUME_SIZE,
+                    noiselevel=-1,
+                )
+                value = None
+        if value is None:
+            value = _DEFAULT_FETCH_RESUME_SIZE
+            match = _fetch_resume_size_re.match(value)
         value = int(match.group(1)) * 2 ** _size_suffix_map[match.group(2).upper()]
         return value
 

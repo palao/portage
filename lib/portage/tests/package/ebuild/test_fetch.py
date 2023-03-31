@@ -18,6 +18,7 @@ from portage.package.ebuild.fetch import (
     FilesFetcherValidationError,
     FetchingUnnecessary,
     _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
+    _DEFAULT_FETCH_RESUME_SIZE,
 )
 from portage.exception import PortageException
 from portage.localization import _
@@ -39,8 +40,11 @@ class FakePortageConfig:
     def features(self) -> set:
         return self._features
 
-    def get(self, key, default) -> str:
+    def get(self, key, default=None) -> str:
         return self.dict.get(key, default)
+
+    def __getitem__(self, key):
+        return self.dict[key]
 
 
 class FetchStatusTestCase(unittest.TestCase):
@@ -272,6 +276,54 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         fake_settings = FakePortageConfig()
         params = self.make_instance(settings=fake_settings)
         self.assertEqual(params.fetch_resume_size, 358400)
+
+    @patch("portage.package.ebuild.fetch.writemsg")
+    def test_fetch_resume_size_with_different_explicit_values(self, pwritemsg):
+        """This test ensures that the good old functionality is replicated
+        in the new implementation. Still, I wonder why there is an
+        inconsistent treatment of the prefixes. Should small case prefixes
+        be allowed or not?
+        """
+        input_expected_map = {
+            "4503": 4503,
+            "20K": 20480,
+            "20   K": 20480,
+            "3 M": 3145728,
+            "1G": 1073741824,
+            "": 358400,  # default
+            "1.1G": 358400,  # default: only ints are accepted!
+            "xx": 358400,  # default
+            "2q": 358400,  # default
+            "20k": 358400,  # default: unit prefixes must be capital (why?)
+        }
+        wrong_inputs = {"1.1G", "xx", "2q"}
+        for input_value, expected in input_expected_map.items():
+            fake_settings = FakePortageConfig(PORTAGE_FETCH_RESUME_MIN_SIZE=input_value)
+            params = self.make_instance(settings=fake_settings)
+            self.assertEqual(params.fetch_resume_size, expected)
+            if input_value in wrong_inputs:
+                pwritemsg.assert_has_calls(
+                    [
+                        call(
+                            _(
+                                "!!! Variable PORTAGE_FETCH_RESUME_MIN_SIZE"
+                                f" contains an unrecognized format: '{input_value}'\n"
+                            ),
+                            noiselevel=-1,
+                        ),
+                        call(
+                            _(
+                                "!!! Using PORTAGE_FETCH_RESUME_MIN_SIZE "
+                                f"default value: {_DEFAULT_FETCH_RESUME_SIZE}\n"
+                            ),
+                            noiselevel=-1,
+                        ),
+                    ]
+                )
+                pwritemsg.reset_mock()
+                # The second access does not trigger messages:
+                params.fetch_resume_size
+                pwritemsg.assert_not_called()
 
 
 class FilesFetcherTestCase(unittest.TestCase):
