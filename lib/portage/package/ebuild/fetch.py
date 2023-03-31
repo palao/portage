@@ -82,6 +82,7 @@ from portage.package.ebuild._config.features_set import features_set
 
 _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES = 5
 _DEFAULT_FETCH_RESUME_SIZE = "350K"
+_CHECKSUM_FAILURE_PRIMARYURI = 2
 
 
 class FetchStatus(IntEnum):
