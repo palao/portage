@@ -2140,9 +2140,25 @@ class FilesFetcherParameters:
 
     @functools.cached_property
     def fetch_resume_size(self):
-        value = self.settings.get("PORTAGE_FETCH_RESUME_MIN_SIZE")
-        if value is not None:
-            value = "".join(value.split())
+        # Right now this attribute has a little bug: if the units (prefix)
+        # is small-case (e.g '100k'), the value will be discarded and,
+        # instead, the default value will be silently taken.
+        # Looking at the code, it does not seem the original intention
+        # (see the calls to the ``upper`` method).
+        # However, if small-case unit prefixes are to be accepted, one
+        # must change the unit test first, of course, and replace this line::
+        #
+        #   value = "".join(raw_value.split())
+        #
+        # with this one::
+        #
+        #   value = "".join(raw_value.split()).upper()
+        #
+        # and remove the other calls to ``upper``.
+
+        raw_value = self.settings.get("PORTAGE_FETCH_RESUME_MIN_SIZE")
+        if raw_value is not None:
+            value = "".join(raw_value.split())
             if not value:
                 # If it's undefined or empty, silently use the default.
                 value = _DEFAULT_FETCH_RESUME_SIZE
@@ -2151,18 +2167,19 @@ class FilesFetcherParameters:
                 writemsg(
                     _(
                         "!!! Variable PORTAGE_FETCH_RESUME_MIN_SIZE"
-                        " contains an unrecognized format: '%s'\n"
-                    )
-                    % self.settings["PORTAGE_FETCH_RESUME_MIN_SIZE"],
+                        f" contains an unrecognized format: '{raw_value}'\n"
+                    ),
                     noiselevel=-1,
                 )
                 writemsg(
-                    _("!!! Using PORTAGE_FETCH_RESUME_MIN_SIZE " "default value: %s\n")
-                    % _DEFAULT_FETCH_RESUME_SIZE,
+                    _(
+                        "!!! Using PORTAGE_FETCH_RESUME_MIN_SIZE "
+                        f"default value: {_DEFAULT_FETCH_RESUME_SIZE}\n"
+                    ),
                     noiselevel=-1,
                 )
-                value = None
-        if value is None:
+                raw_value = None
+        if raw_value is None:
             value = _DEFAULT_FETCH_RESUME_SIZE
             match = _fetch_resume_size_re.match(value)
         value = int(match.group(1)) * 2 ** _size_suffix_map[match.group(2).upper()]
