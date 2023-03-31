@@ -75,6 +75,7 @@ from portage.util import (
     writemsg,
     writemsg_level,
     writemsg_stdout,
+    stack_dictlist,
 )
 from portage.process import spawn
 from portage.package.ebuild._config.features_set import features_set
@@ -2018,6 +2019,13 @@ class FilesFetcherParameters:
     needed to fetch URIs. It includes a layer of validation.
 
     Its main (only?) customer is the ``FilesFetcher`` class.
+
+    Most of the attributes are properties or cached properties. The choice
+    between the two has been done not based on performance, but on whether
+    the determination of the attribute in question might require printing
+    out a message, or some other side effect.
+    Since the class is *frozen* both properties and cached properties are
+    read-only.
     """
 
     # In the old implementation, the parsing functionality of some
@@ -2185,6 +2193,10 @@ class FilesFetcherParameters:
             match = _fetch_resume_size_re.match(value)
         value = int(match.group(1)) * 2 ** _size_suffix_map[match.group(2).upper()]
         return value
+
+    @property
+    def thirdpartymirrors(self) -> stack_dictlist:
+        return self.settings.thirdpartymirrors()
 
 
 class FilesFetcher:

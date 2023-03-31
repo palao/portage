@@ -22,6 +22,7 @@ from portage.package.ebuild.fetch import (
 )
 from portage.exception import PortageException
 from portage.localization import _
+from portage.util import stack_dictlist
 import portage.data
 
 
@@ -34,6 +35,7 @@ class FakePortageConfig:
         if not features:
             features = set()
         self._features = features
+        self._thirdpartymirrors = stack_dictlist([], incrementals=True)
         self.dict = kwargs
 
     @property
@@ -45,6 +47,9 @@ class FakePortageConfig:
 
     def __getitem__(self, key):
         return self.dict[key]
+
+    def thirdpartymirrors(self):
+        return self._thirdpartymirrors
 
 
 class FetchStatusTestCase(unittest.TestCase):
@@ -324,6 +329,14 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
                 # The second access does not trigger messages:
                 params.fetch_resume_size
                 pwritemsg.assert_not_called()
+
+    def test_thirdpartymirrors(self):
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(settings=fake_settings)
+        self.assertEqual(
+            params.thirdpartymirrors,
+            fake_settings.thirdpartymirrors(),
+        )
 
 
 class FilesFetcherTestCase(unittest.TestCase):
