@@ -2019,6 +2019,34 @@ class FilesFetcherParameters:
     Its main (only?) customer is the ``FilesFetcher`` class.
     """
 
+    # In the old implementation, the parsing functionality of some
+    # attributes, like
+    #
+    # - ``checksum_failure_max_tries``
+    #
+    # printed out some information if the input was wrong. The same happens
+    # in the current implementation, but now those messages are printed out
+    # when the attributes are first accessed. If any message is wanted
+    # earlier, one could add a line to ``__post_init__`` just accessing the
+    # attribute, like (in the case of ``checksum_failure_max_tries``)::
+    #
+    #   def __post_init__(self):
+    #       ...
+    #       self.checksum_failure_max_tries
+    #
+    # or, even better --explicit is better than implicit, they say--, define
+    # a simple method, e.g.::
+    #
+    #   def parse_checksum_failure_max_tries(self):
+    #       self.checksum_failure_max_tries
+    #
+    # and call it from ``__post_init__``::
+    #
+    #   def __post_init__(self):
+    #       ...
+    #       self.parse_checksum_failure_max_tries()
+    #
+
     _: KW_ONLY
     settings: config
     listonly: bool
