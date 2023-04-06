@@ -2020,12 +2020,18 @@ class FilesFetcherParameters:
 
     Its main (only?) customer is the ``FilesFetcher`` class.
 
-    Most of the attributes are properties or cached properties. The choice
-    between the two has been done not based on performance, but on whether
-    the determination of the attribute in question might require printing
-    out a message, or some other side effect.
-    Since the class is *frozen* both properties and cached properties are
-    read-only.
+    Most of the attributes are properties and some of them are cached.
+    The decision between caching or not has *not* been taken on the basis
+    of performance considerations, but on whether the determination of
+    the attribute in question might require printing out a message, or
+    some other side effect.
+
+    .. note::
+
+       The current implementation caches attributes *by hand*.
+       Python >= 3.8 ``functools`` defines a ``cached:property`` that
+       could be used for that purpose.
+
     """
 
     # In the old implementation, the parsing functionality of some
@@ -2103,7 +2109,7 @@ class FilesFetcherParameters:
         # 'nomirror' is bad/negative logic. You Restrict mirroring, not no-mirroring.
         return "mirror" in self.restrict or "nomirror" in self.restrict
 
-    @functools.cached_property
+    @property
     def checksum_failure_max_tries(self) -> int:
         """It limits how many times a file is tried to be downloaded.
 
@@ -2112,42 +2118,46 @@ class FilesFetcherParameters:
         and time, so there needs to be a cap.
         """
 
-        value = self.settings.get("PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS", None)
         try:
-            value = int(value)
-        except (ValueError, OverflowError, TypeError):
-            # OverflowError should not be raised here by CPython...
-            # (see https://docs.python.org/3/library/exceptions.html#OverflowError)
-            # But maybe other Python implementations can raise it?
-            writemsg(
-                _(
-                    "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
-                    f" contains non-integer value: '{value}'\n"
-                ),
-                noiselevel=-1,
-            )
-            value = None
-        if value and value < 1:
-            writemsg(
-                _(
-                    "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
-                    f" contains value less than 1: '{value}'\n"
-                ),
-                noiselevel=-1,
-            )
-            value = None
-        if value is None:
-            value = _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES
-            writemsg(
-                _(
-                    "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
-                    f"default value: {value}\n"
-                ),
-                noiselevel=-1,
-            )
+            value = self._checksum_failure_max_tries
+        except AttributeError:
+            value = self.settings.get("PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS", None)
+            try:
+                value = int(value)
+            except (ValueError, OverflowError, TypeError):
+                # OverflowError should not be raised here by CPython...
+                # (see https://docs.python.org/3/library/exceptions.html#OverflowError)
+                # But maybe other Python implementations can raise it?
+                writemsg(
+                    _(
+                        "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
+                        f" contains non-integer value: '{value}'\n"
+                    ),
+                    noiselevel=-1,
+                )
+                value = None
+            if value and value < 1:
+                writemsg(
+                    _(
+                        "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
+                        f" contains value less than 1: '{value}'\n"
+                    ),
+                    noiselevel=-1,
+                )
+                value = None
+            if value is None:
+                value = _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES
+                writemsg(
+                    _(
+                        "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
+                        f"default value: {value}\n"
+                    ),
+                    noiselevel=-1,
+                )
+            self._checksum_failure_max_tries = value
         return value
 
-    @functools.cached_property
+    @property
     def fetch_resume_size(self):
         # Right now this attribute has a little bug: if the units (prefix)
         # is small-case (e.g '100k'), the value will be discarded and,
@@ -2165,33 +2175,37 @@ class FilesFetcherParameters:
         #
         # and remove the other calls to ``upper``.
 
-        raw_value = self.settings.get("PORTAGE_FETCH_RESUME_MIN_SIZE")
-        if raw_value is not None:
-            value = "".join(raw_value.split())
-            if not value:
-                # If it's undefined or empty, silently use the default.
+        try:
+            value = self._fetch_resume_size
+        except AttributeError:
+            raw_value = self.settings.get("PORTAGE_FETCH_RESUME_MIN_SIZE")
+            if raw_value is not None:
+                value = "".join(raw_value.split())
+                if not value:
+                    # If it's undefined or empty, silently use the default.
+                    value = _DEFAULT_FETCH_RESUME_SIZE
+                match = _fetch_resume_size_re.match(value)
+                if match is None or (match.group(2).upper() not in _size_suffix_map):
+                    writemsg(
+                        _(
+                            "!!! Variable PORTAGE_FETCH_RESUME_MIN_SIZE"
+                            f" contains an unrecognized format: '{raw_value}'\n"
+                        ),
+                        noiselevel=-1,
+                    )
+                    writemsg(
+                        _(
+                            "!!! Using PORTAGE_FETCH_RESUME_MIN_SIZE "
+                            f"default value: {_DEFAULT_FETCH_RESUME_SIZE}\n"
+                        ),
+                        noiselevel=-1,
+                    )
+                    raw_value = None
+            if raw_value is None:
                 value = _DEFAULT_FETCH_RESUME_SIZE
-            match = _fetch_resume_size_re.match(value)
-            if match is None or (match.group(2).upper() not in _size_suffix_map):
-                writemsg(
-                    _(
-                        "!!! Variable PORTAGE_FETCH_RESUME_MIN_SIZE"
-                        f" contains an unrecognized format: '{raw_value}'\n"
-                    ),
-                    noiselevel=-1,
-                )
-                writemsg(
-                    _(
-                        "!!! Using PORTAGE_FETCH_RESUME_MIN_SIZE "
-                        f"default value: {_DEFAULT_FETCH_RESUME_SIZE}\n"
-                    ),
-                    noiselevel=-1,
-                )
-                raw_value = None
-        if raw_value is None:
-            value = _DEFAULT_FETCH_RESUME_SIZE
-            match = _fetch_resume_size_re.match(value)
-        value = int(match.group(1)) * 2 ** _size_suffix_map[match.group(2).upper()]
+                match = _fetch_resume_size_re.match(value)
+            value = int(match.group(1)) * 2 ** _size_suffix_map[match.group(2).upper()]
+            self._fetch_resume_size = value
         return value
 
     @property
