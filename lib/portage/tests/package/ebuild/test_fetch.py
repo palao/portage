@@ -48,6 +48,9 @@ class FakePortageConfig:
     def __getitem__(self, key):
         return self.dict[key]
 
+    def __contains__(self, key):
+        return key in self.dict
+
     def thirdpartymirrors(self):
         return self._thirdpartymirrors
 
@@ -103,16 +106,6 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
             str(cm.exception),
             _("fetch: force=True is not allowed when digests are provided"),
         )
-
-    def test_cannot_modify_attrs(self):
-        """This test ensures that the consistency of the params remains
-        in time. To simplify the logic, it is required that once the
-        instance is created, the params cannot be changed.
-        """
-        params = self.make_instance()
-        for attr in params.__dict__.keys():
-            with self.assertRaises(AttributeError):
-                setattr(params, attr, "whatever")
 
     def test_only_accepts_keyword_args(self):
         """Why this test? The constructor accepts too many parameters.
@@ -337,6 +330,25 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
             params.thirdpartymirrors,
             fake_settings.thirdpartymirrors(),
         )
+
+    def test_parallel_fetchonly(self):
+        # The default case:
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(settings=fake_settings)
+        self.assertFalse(params.parallel_fetchonly)
+        self.assertFalse(params.fetchonly)
+
+        # PORTAGE_PARALLEL_FETCHONLY determines fetchonly and
+        # parallel_fetchonly:
+        fake_settings = FakePortageConfig(PORTAGE_PARALLEL_FETCHONLY=True)
+        params = self.make_instance(settings=fake_settings)
+        self.assertTrue(params.parallel_fetchonly)
+        self.assertTrue(params.fetchonly)
+
+        # ...even if fetchonly is explicitly asked to be False:
+        params = self.make_instance(settings=fake_settings, fetchonly=False)
+        self.assertTrue(params.parallel_fetchonly)
+        self.assertTrue(params.fetchonly)
 
 
 class FilesFetcherTestCase(unittest.TestCase):

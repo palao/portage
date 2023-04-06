@@ -2013,7 +2013,7 @@ def fetch(
     return 1
 
 
-@dataclass(frozen=True)
+@dataclass
 class FilesFetcherParameters:
     """This class' responsability is to be a provider of the parameters
     needed to fetch URIs. It includes a layer of validation.
@@ -2197,6 +2197,13 @@ class FilesFetcherParameters:
     @property
     def thirdpartymirrors(self) -> stack_dictlist:
         return self.settings.thirdpartymirrors()
+
+    @property
+    def parallel_fetchonly(self) -> bool:
+        parallel_fetchonly = "PORTAGE_PARALLEL_FETCHONLY" in self.settings
+        if parallel_fetchonly:
+            self.fetchonly = True
+        return parallel_fetchonly
 
 
 class FilesFetcher:
