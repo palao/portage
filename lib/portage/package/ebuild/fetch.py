@@ -2034,7 +2034,18 @@ class FilesFetcherParameters:
 
     """
 
-    # In the old implementation, the parsing functionality of some
+    ########################################################################
+    #  Would it be better to make a distinction between requested parameters
+    # and effective ones?
+    #  For instance, the user might require ``fetchonly = False`` but also
+    # simultaneously the ``parallel_fetchonly`` option may be turned on. In
+    # that case ``fetchonly``'s requested value would be ``False`` while its
+    # effective value (enforced by ``parallel_fetchonly``) would be ``True``.
+    #
+    #  The current implementation overwrites the attributes since the need
+    # to distinguish them is not evident to me.
+    ########################################################################
+    #  In the old implementation, the parsing functionality of some
     # attributes, like
     #
     # - ``checksum_failure_max_tries``
@@ -2074,8 +2085,12 @@ class FilesFetcherParameters:
     force: bool
 
     def __post_init__(self):
+        self.validate_settings()
         self.validate_force_and_digests()
         self.validate_restrict_mirror()
+
+    def validate_settings(self):
+        check_config_instance(self.settings)
 
     def validate_force_and_digests(self):
         if self.force and self.digests:
@@ -2214,6 +2229,11 @@ class FilesFetcherParameters:
 
     @property
     def parallel_fetchonly(self) -> bool:
+        # In the background parallel-fetch process, it's safe to skip checksum
+        # verification of pre-existing files in $DISTDIR that have the correct
+        # file size. The parent process will verify their checksums prior to
+        # the unpack phase.
+
         parallel_fetchonly = "PORTAGE_PARALLEL_FETCHONLY" in self.settings
         if parallel_fetchonly:
             self.fetchonly = True

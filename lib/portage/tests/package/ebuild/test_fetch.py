@@ -65,6 +65,7 @@ class FetchStatusTestCase(unittest.TestCase):
         self.assertEqual(FetchStatus.ERROR, 0)
 
 
+@patch("portage.package.ebuild.fetch.check_config_instance")
 class FilesFetcherParametersTestCase(unittest.TestCase):
     def make_instance(self, **kwords):
         """Auxiliary method. It takes arbitrary keyword arguments for
@@ -85,7 +86,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         kwargs.update(kwords)
         return FilesFetcherParameters(**kwargs)
 
-    def test_instance_has_expected_attributes(self):
+    def test_instance_has_expected_attributes(self, pcheck_config_instance):
         fake_digests = {"green": {"a/b": "25"}}
         fake_settings = FakePortageConfig()
         params = self.make_instance(settings=fake_settings, digests=fake_digests)
@@ -99,7 +100,36 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertTrue(params.allow_missing_digests)
         self.assertFalse(params.force)
 
-    def test_inconsistent_force_and_digests(self):
+    @patch("portage.package.ebuild.fetch.FilesFetcherParameters.validate_settings")
+    def test_settings_validation_is_called_by_init(
+        self, pvalidate_settings, pcheck_config_instance
+    ):
+        """This test is the first step to ensure that the passed in
+        settings are correct::
+
+        1. ``_validate_settings`` is called.
+        """
+        self.make_instance()
+        pvalidate_settings.assert_called_once_with()
+
+    def test_settings_validation_calls_check_config_instance(
+        self, pcheck_config_instance
+    ):
+        """This test is the second step to ensure that the passed in
+        settings are correct::
+
+        2. ``check_config_instance`` is called by ``_validate_settings``.
+        """
+        params = self.make_instance()
+        # At init time, the validation layer calls ``validate_settings``,
+        # which, in turn calls ``check_config_instance``, so we need
+        # to reset the mock before explicitly testing that
+        # ``validate_settings`` calls ``check_config_instance``.
+        pcheck_config_instance.reset_mock()
+        params.validate_settings()
+        pcheck_config_instance.assert_called_once_with(params.settings)
+
+    def test_inconsistent_force_and_digests(self, pcheck_config_instance):
         with self.assertRaises(PortageException) as cm:
             self.make_instance(digests={"green": {"a/b": "25"}}, force=True)
         self.assertEqual(
@@ -107,7 +137,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
             _("fetch: force=True is not allowed when digests are provided"),
         )
 
-    def test_only_accepts_keyword_args(self):
+    def test_only_accepts_keyword_args(self, pcheck_config_instance):
         """Why this test? The constructor accepts too many parameters.
         To avoid confusion, we require that they are keyword only."""
         with self.assertRaises(TypeError):
@@ -135,12 +165,12 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
                 False,
             )
 
-    def test_features_comes_directly_from_settings(self):
+    def test_features_comes_directly_from_settings(self, pcheck_config_instance):
         settings = FakePortageConfig()
         params = self.make_instance(settings=settings)
         self.assertEqual(params.features, settings.features)
 
-    def test_restrict_attribute(self):
+    def test_restrict_attribute(self, pcheck_config_instance):
         settings = FakePortageConfig()
         params = self.make_instance(settings=settings)
         self.assertEqual(params.restrict, [])
@@ -149,7 +179,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         settings.dict["PORTAGE_RESTRICT"] = "aaa bbb"
         self.assertEqual(params.restrict, ["aaa", "bbb"])
 
-    def test_userfetch_attribute(self):
+    def test_userfetch_attribute(self, pcheck_config_instance):
         settings = FakePortageConfig()
         params = self.make_instance(settings=settings)
         # monkey patching "portage.data.secpass":
@@ -162,7 +192,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertFalse(params.userfetch)
         portage.data.secpass = secpass_orig
 
-    def test_restrict_mirror_attribute(self):
+    def test_restrict_mirror_attribute(self, pcheck_config_instance):
         fake_settings = FakePortageConfig()
         params = self.make_instance(settings=fake_settings)
         self.assertFalse(params.restrict_mirror)
@@ -174,7 +204,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertTrue(params.restrict_mirror)
 
     @patch("portage.package.ebuild.fetch.writemsg_stdout")
-    def test_validate_restrict_mirror(self, pwritemsg_stdout):
+    def test_validate_restrict_mirror(self, pwritemsg_stdout, pcheck_config_instance):
         fake_settings = FakePortageConfig(
             features={"mirror"}, PORTAGE_RESTRICT="mirror"
         )
@@ -186,7 +216,9 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         )
 
     @patch("portage.package.ebuild.fetch.writemsg_stdout")
-    def test_lmirror_bypasses_mirror_restrictions(self, pwritemsg_stdout):
+    def test_lmirror_bypasses_mirror_restrictions(
+        self, pwritemsg_stdout, pcheck_config_instance
+    ):
         fake_settings = FakePortageConfig(
             features={"mirror", "lmirror"}, PORTAGE_RESTRICT="mirror"
         )
@@ -194,7 +226,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params = self.make_instance(settings=fake_settings)
         pwritemsg_stdout.assert_not_called()
 
-    def test_checksum_failure_max_tries(self):
+    def test_checksum_failure_max_tries(self, pcheck_config_instance):
         fake_settings = FakePortageConfig()
         params = self.make_instance(settings=fake_settings)
         self.assertEqual(
@@ -206,7 +238,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertEqual(params.checksum_failure_max_tries, 23)
 
     @patch("portage.package.ebuild.fetch.writemsg")
-    def test_wrong_checksum_failure_max_tries(self, pwritemsg):
+    def test_wrong_checksum_failure_max_tries(self, pwritemsg, pcheck_config_instance):
         fake_settings = FakePortageConfig(PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS="none")
         params = self.make_instance(settings=fake_settings)
         self.assertEqual(
@@ -260,7 +292,9 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         )
 
     @patch("portage.package.ebuild.fetch.writemsg")
-    def test_only_one_msg_if_wrong_checksum_failure_max_tries(self, pwritemsg):
+    def test_only_one_msg_if_wrong_checksum_failure_max_tries(
+        self, pwritemsg, pcheck_config_instance
+    ):
         fake_settings = FakePortageConfig(PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS="x")
         params = self.make_instance(settings=fake_settings)
         # This line will print some messages:
@@ -270,13 +304,15 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params.checksum_failure_max_tries
         pwritemsg.assert_not_called()
 
-    def test_fetch_resume_size_default_value(self):
+    def test_fetch_resume_size_default_value(self, pcheck_config_instance):
         fake_settings = FakePortageConfig()
         params = self.make_instance(settings=fake_settings)
         self.assertEqual(params.fetch_resume_size, 358400)
 
     @patch("portage.package.ebuild.fetch.writemsg")
-    def test_fetch_resume_size_with_different_explicit_values(self, pwritemsg):
+    def test_fetch_resume_size_with_different_explicit_values(
+        self, pwritemsg, pcheck_config_instance
+    ):
         """This test ensures that the good old functionality is replicated
         in the new implementation. Still, I wonder why there is an
         inconsistent treatment of the prefixes. Should small case prefixes
@@ -323,7 +359,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
                 params.fetch_resume_size
                 pwritemsg.assert_not_called()
 
-    def test_thirdpartymirrors(self):
+    def test_thirdpartymirrors(self, pcheck_config_instance):
         fake_settings = FakePortageConfig()
         params = self.make_instance(settings=fake_settings)
         self.assertEqual(
@@ -331,7 +367,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
             fake_settings.thirdpartymirrors(),
         )
 
-    def test_parallel_fetchonly(self):
+    def test_parallel_fetchonly(self, pcheck_config_instance):
         # The default case:
         fake_settings = FakePortageConfig()
         params = self.make_instance(settings=fake_settings)
