@@ -76,11 +76,11 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         """
         kwargs = {
             "settings": FakePortageConfig(),
-            "listonly": 0,
-            "fetchonly": 0,
+            "listonly": False,
+            "fetchonly": False,
             "locks_in_subdir": ".locks",
-            "use_locks": 1,
-            "try_mirrors": 1,
+            "use_locks": False,
+            "try_mirrors": True,
             "digests": None,
             "allow_missing_digests": True,
             "force": False,
@@ -96,7 +96,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertFalse(params.listonly)
         self.assertFalse(params.fetchonly)
         self.assertEqual(params.locks_in_subdir, ".locks")
-        self.assertTrue(params.use_locks)
+        self.assertFalse(params.use_locks)
         self.assertTrue(params.try_mirrors)
         self.assertEqual(params.digests, fake_digests)
         self.assertTrue(params.allow_missing_digests)
@@ -396,8 +396,10 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
     def test_custommirrors(self, pgrabdict, pcheck_config_instance):
         """In this test we consider ``grabdict`` as a black box: it is
         assumed to be *the* way to perform the opearion it does and
-        we just test here that it is called as expected, and its
-        result determines the attribute under test.
+        we just test here that:
+
+        1. it is called as expected, and
+        2. its result determines the attribute under test.
         """
         fake_settings = FakePortageConfig(PORTAGE_CONFIGROOT="x/y/z")
         params = self.make_instance(settings=fake_settings)
@@ -405,6 +407,19 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         pgrabdict.assert_called_once_with(
             Path("x/y/z") / CUSTOM_MIRRORS_FILE, recursive=True
         )
+
+    def test_use_locks(self, pcheck_config_instance):
+        # Default [listonly == False and ("distlocks" in features)]:
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(settings=fake_settings)
+        self.assertFalse(params.use_locks)
+        # [listonly == True and ("distlocks" in features)]:
+        params = self.make_instance(settings=fake_settings, listonly=True)
+        self.assertFalse(params.use_locks)
+        # [listonly == True and ("distlocks" not in features)]:
+        fake_settings = FakePortageConfig(features={"distlocks"})
+        params = self.make_instance(settings=fake_settings, listonly=True)
+        self.assertFalse(params.use_locks)
 
 
 class FilesFetcherTestCase(unittest.TestCase):

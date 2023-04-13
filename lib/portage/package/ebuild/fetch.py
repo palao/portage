@@ -2086,14 +2086,15 @@ class FilesFetcherParameters:
     listonly: bool
     fetchonly: InitVar[bool]
     locks_in_subdir: str
-    use_locks: bool
+    use_locks: InitVar[bool]
     try_mirrors: bool
     digests: Optional[dict]
     allow_missing_digests: bool
     force: bool
 
-    def __post_init__(self, fetchonly):
+    def __post_init__(self, fetchonly, use_locks):
         self._fetchonly = fetchonly
+        self._use_locks = use_locks
         self.validate_settings()
         self.validate_force_and_digests()
         self.validate_restrict_mirror()
@@ -2258,10 +2259,7 @@ class FilesFetcherParameters:
         # file size. The parent process will verify their checksums prior to
         # the unpack phase.
 
-        parallel_fetchonly = "PORTAGE_PARALLEL_FETCHONLY" in self.settings
-        # if parallel_fetchonly:
-        #     self.fetchonly = True
-        return parallel_fetchonly
+        return "PORTAGE_PARALLEL_FETCHONLY" in self.settings
 
     @property
     def custommirrors(self) -> dict[str, list[str]]:
@@ -2269,6 +2267,21 @@ class FilesFetcherParameters:
             Path(self.settings["PORTAGE_CONFIGROOT"]) / CUSTOM_MIRRORS_FILE,
             recursive=True,
         )
+
+    @property
+    def use_locks(self) -> bool:
+        """This property returns a value that is consistent with the
+        ``distlocks`` feature, and the ``listonly``attribute.
+
+        The initial value given to ``use_locks`` at creation time is a
+        hint: it will be stored initially in an internal attribute
+        (``_use_locks``) but its *effective* value must be ``False``
+        if ``listonly == True`` or if ``distlocks`` is not a requested
+        feature.
+        """
+        if self.listonly or ("distlocks" not in self.features):
+            self._use_locks = False
+        return self._use_locks
 
 
 class FilesFetcher:
