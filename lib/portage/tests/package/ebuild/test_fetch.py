@@ -9,6 +9,7 @@
 import unittest
 from unittest.mock import Mock, patch, call
 from typing import Optional
+from pathlib import Path
 
 from portage.package.ebuild.fetch import (
     FilesFetcherParameters,
@@ -23,6 +24,7 @@ from portage.package.ebuild.fetch import (
 from portage.exception import PortageException
 from portage.localization import _
 from portage.util import stack_dictlist
+from portage.const import CUSTOM_MIRRORS_FILE
 import portage.data
 
 
@@ -385,6 +387,20 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params = self.make_instance(settings=fake_settings, fetchonly=False)
         self.assertTrue(params.parallel_fetchonly)
         self.assertTrue(params.fetchonly)
+
+    @patch("portage.package.ebuild.fetch.grabdict")
+    def test_custommirrors(self, pgrabdict, pcheck_config_instance):
+        """In this test we consider ``grabdict`` as a black box: it is
+        assumed to be *the* way to perform the opearion it does and
+        we just test here that it is called as expected, and its
+        result determines the attribute under test.
+        """
+        fake_settings = FakePortageConfig(PORTAGE_CONFIGROOT="x/y/z")
+        params = self.make_instance(settings=fake_settings)
+        self.assertEqual(params.custommirrors, pgrabdict.return_value)
+        pgrabdict.assert_called_once_with(
+            Path("x/y/z") / CUSTOM_MIRRORS_FILE, recursive=True
+        )
 
 
 class FilesFetcherTestCase(unittest.TestCase):

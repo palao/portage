@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 from urllib.parse import quote as urlquote
 from typing import Optional
 from enum import IntEnum
+from pathlib import Path
 
 import portage
 
@@ -2238,6 +2239,13 @@ class FilesFetcherParameters:
         if parallel_fetchonly:
             self.fetchonly = True
         return parallel_fetchonly
+
+    @property
+    def custommirrors(self):
+        return grabdict(
+            Path(self.settings["PORTAGE_CONFIGROOT"]) / CUSTOM_MIRRORS_FILE,
+            recursive=True,
+        )
 
 
 class FilesFetcher:
