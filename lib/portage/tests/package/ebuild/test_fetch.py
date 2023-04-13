@@ -369,24 +369,28 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
             fake_settings.thirdpartymirrors(),
         )
 
+    def test_fetchonly(self, pcheck_config_instance):
+        # The default case:
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(settings=fake_settings)
+        self.assertFalse(params.fetchonly)
+        # PORTAGE_PARALLEL_FETCHONLY fixes fetchonly too:
+        fake_settings = FakePortageConfig(PORTAGE_PARALLEL_FETCHONLY=True)
+        params = self.make_instance(settings=fake_settings)
+        self.assertTrue(params.fetchonly)
+        # ...even if fetchonly is explicitly asked to be False:
+        params = self.make_instance(settings=fake_settings, fetchonly=False)
+        self.assertTrue(params.fetchonly)
+
     def test_parallel_fetchonly(self, pcheck_config_instance):
         # The default case:
         fake_settings = FakePortageConfig()
         params = self.make_instance(settings=fake_settings)
         self.assertFalse(params.parallel_fetchonly)
-        self.assertFalse(params.fetchonly)
-
-        # PORTAGE_PARALLEL_FETCHONLY determines fetchonly and
-        # parallel_fetchonly:
+        # PORTAGE_PARALLEL_FETCHONLY determines parallel_fetchonly:
         fake_settings = FakePortageConfig(PORTAGE_PARALLEL_FETCHONLY=True)
         params = self.make_instance(settings=fake_settings)
         self.assertTrue(params.parallel_fetchonly)
-        self.assertTrue(params.fetchonly)
-
-        # ...even if fetchonly is explicitly asked to be False:
-        params = self.make_instance(settings=fake_settings, fetchonly=False)
-        self.assertTrue(params.parallel_fetchonly)
-        self.assertTrue(params.fetchonly)
 
     @patch("portage.package.ebuild.fetch.grabdict")
     def test_custommirrors(self, pgrabdict, pcheck_config_instance):

@@ -15,7 +15,7 @@ import stat
 import sys
 import tempfile
 import time
-from dataclasses import dataclass, KW_ONLY
+from dataclasses import dataclass, KW_ONLY, InitVar
 from collections import OrderedDict
 from collections.abc import Mapping
 from urllib.parse import urlparse
@@ -2036,15 +2036,22 @@ class FilesFetcherParameters:
     """
 
     ########################################################################
-    #  Would it be better to make a distinction between requested parameters
-    # and effective ones?
-    #  For instance, the user might require ``fetchonly = False`` but also
+    # Requested vs. effective attribute values
+    # ----------------------------------------
+    #  The *requested* attribute value is the value given at creation time.
+    # The *effective* attribute value is the value that is actually returned
+    # by the instance.
+    #  For instance, the user might request ``fetchonly = False`` but also
     # simultaneously the ``parallel_fetchonly`` option may be turned on. In
     # that case ``fetchonly``'s requested value would be ``False`` while its
     # effective value (enforced by ``parallel_fetchonly``) would be ``True``.
     #
-    #  The current implementation overwrites the attributes since the need
-    # to distinguish them is not evident to me.
+    #  The current implementation only makes this distinction for those attrs.
+    # for which there is a potential conflict (like ``fetchonly`` which
+    # effective value depends on ``parallel_fetchonly``).
+    #  Would it be better to make a distinction between requested parameters
+    # and effective ones in *all* the cases? I think it wouldn't.
+    #
     ########################################################################
     #  In the old implementation, the parsing functionality of some
     # attributes, like
@@ -2077,7 +2084,7 @@ class FilesFetcherParameters:
     _: KW_ONLY
     settings: config
     listonly: bool
-    fetchonly: bool
+    fetchonly: InitVar[bool]
     locks_in_subdir: str
     use_locks: bool
     try_mirrors: bool
@@ -2085,7 +2092,8 @@ class FilesFetcherParameters:
     allow_missing_digests: bool
     force: bool
 
-    def __post_init__(self):
+    def __post_init__(self, fetchonly):
+        self._fetchonly = fetchonly
         self.validate_settings()
         self.validate_force_and_digests()
         self.validate_restrict_mirror()
@@ -2229,6 +2237,21 @@ class FilesFetcherParameters:
         return self.settings.thirdpartymirrors()
 
     @property
+    def fetchonly(self) -> bool:
+        """This property returns a value that is consistent with the
+        ``PORTAGE_PARALLEL_FETCHONLY`` setting, accessible through the
+        ``parallel_fetchonly`` attribute.
+
+        The initial value given to ``fetchonly`` at creation time is a
+        hint: it will be stored initially in an internal attribute
+        (``_fetchonly``) but the *effective* value of ``fetchonly``
+        can be different, depending on ``parallel_fetchonly``.
+        """
+        if self.parallel_fetchonly:
+            self._fetchonly = True
+        return self._fetchonly
+
+    @property
     def parallel_fetchonly(self) -> bool:
         # In the background parallel-fetch process, it's safe to skip checksum
         # verification of pre-existing files in $DISTDIR that have the correct
@@ -2236,12 +2259,12 @@ class FilesFetcherParameters:
         # the unpack phase.
 
         parallel_fetchonly = "PORTAGE_PARALLEL_FETCHONLY" in self.settings
-        if parallel_fetchonly:
-            self.fetchonly = True
+        # if parallel_fetchonly:
+        #     self.fetchonly = True
         return parallel_fetchonly
 
     @property
-    def custommirrors(self):
+    def custommirrors(self) -> dict[str, list[str]]:
         return grabdict(
             Path(self.settings["PORTAGE_CONFIGROOT"]) / CUSTOM_MIRRORS_FILE,
             recursive=True,
