@@ -2288,6 +2288,12 @@ class FilesFetcherParameters:
         """Returns whether the *real* uid is allowed to write to DISTDIR."""
         return os.access(self.settings["DISTDIR"], os.W_OK)
 
+    @property
+    def fetch_to_ro(self) -> bool:
+        if "skiprocheck" in self.features:
+            return True
+        return False
+
 
 class FilesFetcher:
     """This class is in charge of all the logic related to fetching URIs given

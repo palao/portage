@@ -428,6 +428,13 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertEqual(params.distdir_writable, pos.access.return_value)
         pos.access.assert_called_once_with("x/u", pos.W_OK)
 
+    def test_fetch_to_ro(self, pcheck_config_instance):
+        fake_settings = FakePortageConfig()
+        params = self.make_instance(settings=fake_settings)
+        self.assertFalse(params.fetch_to_ro)
+        fake_settings.features.add("skiprocheck")
+        self.assertTrue(params.fetch_to_ro)
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):
