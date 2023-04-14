@@ -2283,6 +2283,11 @@ class FilesFetcherParameters:
             self._use_locks = False
         return self._use_locks
 
+    @property
+    def distdir_writable(self) -> bool:
+        """Returns whether the *real* uid is allowed to write to DISTDIR."""
+        return os.access(self.settings["DISTDIR"], os.W_OK)
+
 
 class FilesFetcher:
     """This class is in charge of all the logic related to fetching URIs given

@@ -421,6 +421,13 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params = self.make_instance(settings=fake_settings, listonly=True)
         self.assertFalse(params.use_locks)
 
+    @patch("portage.package.ebuild.fetch.os")
+    def test_distdir_writable(self, pos, pcheck_config_instance):
+        fake_settings = FakePortageConfig(DISTDIR="x/u")
+        params = self.make_instance(settings=fake_settings)
+        self.assertEqual(params.distdir_writable, pos.access.return_value)
+        pos.access.assert_called_once_with("x/u", pos.W_OK)
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):
