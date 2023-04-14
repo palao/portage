@@ -25,6 +25,7 @@ from portage.exception import PortageException
 from portage.localization import _
 from portage.util import stack_dictlist
 from portage.const import CUSTOM_MIRRORS_FILE
+from portage.output import colorize
 import portage.data
 
 
@@ -38,7 +39,9 @@ class FakePortageConfig:
             features = set()
         self._features = features
         self._thirdpartymirrors = stack_dictlist([], incrementals=True)
-        self.dict = kwargs
+        # The validators read DISTDIR, a default value avoid crashes:
+        self.dict = {"DISTDIR": ""}
+        self.dict.update(kwargs)
 
     @property
     def features(self) -> set:
@@ -425,6 +428,9 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
     def test_distdir_writable(self, pos, pcheck_config_instance):
         fake_settings = FakePortageConfig(DISTDIR="x/u")
         params = self.make_instance(settings=fake_settings)
+        # The validators grab the attribute, so we need to reset
+        # before exercising:
+        pos.access.reset_mock()
         self.assertEqual(params.distdir_writable, pos.access.return_value)
         pos.access.assert_called_once_with("x/u", pos.W_OK)
 
@@ -434,6 +440,36 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertFalse(params.fetch_to_ro)
         fake_settings.features.add("skiprocheck")
         self.assertTrue(params.fetch_to_ro)
+
+    @patch("portage.package.ebuild.fetch.os")
+    @patch("portage.package.ebuild.fetch.writemsg")
+    def test_inconsistent_use_locks_on_ro_distdir(
+        self, pwritemsg, pos, pcheck_config_instance
+    ):
+        fake_settings = FakePortageConfig(features={"skiprocheck", "distlocks"})
+        pos.access.return_value = False
+        params = self.make_instance(settings=fake_settings, use_locks=True)
+        pwritemsg.assert_has_calls(
+            [
+                call(
+                    colorize(
+                        "BAD",
+                        _(
+                            "!!! For fetching to a read-only filesystem, "
+                            "locking should be turned off.\n"
+                        ),
+                    ),
+                    noiselevel=-1,
+                ),
+                call(
+                    _(
+                        "!!! This can be done by adding -distlocks to "
+                        "FEATURES in /etc/portage/make.conf\n"
+                    ),
+                    noiselevel=-1,
+                ),
+            ]
+        )
 
 
 class FilesFetcherTestCase(unittest.TestCase):

@@ -2098,6 +2098,7 @@ class FilesFetcherParameters:
         self.validate_settings()
         self.validate_force_and_digests()
         self.validate_restrict_mirror()
+        self.validate_use_locks_and_ro_distdir()
 
     def validate_settings(self):
         check_config_instance(self.settings)
@@ -2116,6 +2117,33 @@ class FilesFetcherParameters:
                     noiselevel=-1,
                 )
                 raise FetchingUnnecessary()
+
+    def validate_use_locks_and_ro_distdir(self):
+        #  As it is now (April 2023), this validator does nothing apart
+        # from displaying a message. Is this enough?
+        # Should it raise?
+        # Should it change some setting, as suggested by the comment
+        # in the last line?
+        if not self.distdir_writable and self.fetch_to_ro:
+            if self.use_locks:
+                writemsg(
+                    colorize(
+                        "BAD",
+                        _(
+                            "!!! For fetching to a read-only filesystem, "
+                            "locking should be turned off.\n"
+                        ),
+                    ),
+                    noiselevel=-1,
+                )
+                writemsg(
+                    _(
+                        "!!! This can be done by adding -distlocks to "
+                        "FEATURES in /etc/portage/make.conf\n"
+                    ),
+                    noiselevel=-1,
+                )
+        # 			use_locks = 0
 
     @property
     def features(self) -> features_set:
