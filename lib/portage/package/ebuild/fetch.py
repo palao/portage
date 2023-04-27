@@ -2123,7 +2123,7 @@ class FilesFetcherParameters:
         # from displaying a message. Is this enough?
         # Should it raise?
         # Should it change some setting, as suggested by the comment
-        # in the last line?
+        # in the last line? (*)
         if not self.distdir_writable and self.fetch_to_ro:
             if self.use_locks:
                 writemsg(
@@ -2143,7 +2143,7 @@ class FilesFetcherParameters:
                     ),
                     noiselevel=-1,
                 )
-        # 			use_locks = 0
+        # 			use_locks = 0 # (*)
 
     @property
     def features(self) -> features_set:
@@ -2321,6 +2321,48 @@ class FilesFetcherParameters:
         if "skiprocheck" in self.features:
             return True
         return False
+
+    def _populate_mirrors(self) -> None:
+        """Idempotent population of mirrors."""
+        try:
+            self._mirrors_already_populated
+        except AttributeError:
+            local_mirrors = []
+            public_mirrors = []
+            fsmirrors = []
+            if self.try_mirrors:
+                for x in self.custommirrors.get("local", []):
+                    if x.startswith("/"):
+                        fsmirrors.append(x)
+                    else:
+                        local_mirrors.append(x)
+                for x in self.settings["GENTOO_MIRRORS"].split():
+                    # I don't see a case where the next "if" can be useful. Am I wrong?
+                    # if not x:
+                    #     continue
+                    if x.startswith("/"):
+                        fsmirrors.append(x.rstrip("/"))
+                    else:
+                        public_mirrors.append(x.rstrip("/"))
+            self._local_mirrors = tuple(local_mirrors)
+            self._fsmirrors = tuple(fsmirrors)
+            self._public_mirrors = tuple(public_mirrors)
+            self._mirrors_already_populated = True
+
+    @property
+    def local_mirrors(self) -> tuple[str]:
+        self._populate_mirrors()
+        return self._local_mirrors
+
+    @property
+    def public_mirrors(self) -> tuple[str]:
+        self._populate_mirrors()
+        return self._public_mirrors
+
+    @property
+    def fsmirrors(self) -> tuple[str]:
+        self._populate_mirrors()
+        return self._fsmirrors
 
 
 class FilesFetcher:

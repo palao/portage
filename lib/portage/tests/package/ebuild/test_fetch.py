@@ -7,7 +7,7 @@
 """
 
 import unittest
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, patch, call, PropertyMock
 from typing import Optional
 from pathlib import Path
 
@@ -469,6 +469,46 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
                     noiselevel=-1,
                 ),
             ]
+        )
+
+    def test_empty_mirrors_if_no_try_mirrors(self, pcheck_config_instance):
+        params = self.make_instance(try_mirrors=False)
+        self.assertEqual(params.local_mirrors, ())
+        self.assertEqual(params.public_mirrors, ())
+        self.assertEqual(params.fsmirrors, ())
+
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcherParameters.custommirrors",
+        new_callable=PropertyMock,
+    )
+    def test_empty_mirrors_if_no_mirrors(self, mcustom_mirrors, pcheck_config_instance):
+        mysettings = FakePortageConfig(GENTOO_MIRRORS="\n", PORTAGE_CONFIGROOT="/")
+        mcustom_mirrors.return_value = {}
+        params = self.make_instance(settings=mysettings)
+        self.assertEqual(params.local_mirrors, ())
+        self.assertEqual(params.public_mirrors, ())
+        self.assertEqual(params.fsmirrors, ())
+
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcherParameters.custommirrors",
+        new_callable=PropertyMock,
+    )
+    def test_populated_mirrors_if_try_mirrors(
+        self, mcustom_mirrors, pcheck_config_instance
+    ):
+        gmirrors = "/var/my/stuff/ ftp://own.org/gentoo http://eee.com/mir/ /tmp/x"
+        mysettings = FakePortageConfig(GENTOO_MIRRORS=gmirrors, PORTAGE_CONFIGROOT="/")
+        mcustom_mirrors.return_value = {
+            "local": ["/some/path", "otherthing:/what/not", "a://h/c", "/b/c/z"],
+            "?": ["/tmp/x", "https://i.org/distfiles", "ftp://n.net/f"],
+        }
+        params = self.make_instance(settings=mysettings)
+        self.assertEqual(
+            params.fsmirrors, ("/some/path", "/b/c/z", "/var/my/stuff", "/tmp/x")
+        )
+        self.assertEqual(params.local_mirrors, ("otherthing:/what/not", "a://h/c"))
+        self.assertEqual(
+            params.public_mirrors, ("ftp://own.org/gentoo", "http://eee.com/mir")
         )
 
 
