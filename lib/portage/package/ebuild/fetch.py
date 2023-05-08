@@ -2016,7 +2016,7 @@ def fetch(
 
 @dataclass
 class FilesFetcherParameters:
-    """This class' responsability is to be a provider of the parameters
+    """This class' responsibility is to be a provider of the parameters
     needed to fetch URIs. It includes a layer of validation.
 
     Its main (only?) customer is the ``FilesFetcher`` class.
@@ -2030,7 +2030,7 @@ class FilesFetcherParameters:
     .. note::
 
        The current implementation caches attributes *by hand*.
-       Python >= 3.8 ``functools`` defines a ``cached:property`` that
+       Python >= 3.8 ``functools`` defines a ``cached_property`` that
        could be used for that purpose.
 
     """
@@ -2041,7 +2041,7 @@ class FilesFetcherParameters:
     #  The *requested* attribute value is the value given at creation time.
     # The *effective* attribute value is the value that is actually returned
     # by the instance.
-    #  For instance, the user might request ``fetchonly = False`` but also
+    #  For example, the user might request ``fetchonly = False`` but also
     # simultaneously the ``parallel_fetchonly`` option may be turned on. In
     # that case ``fetchonly``'s requested value would be ``False`` while its
     # effective value (enforced by ``parallel_fetchonly``) would be ``True``.
@@ -2363,6 +2363,21 @@ class FilesFetcherParameters:
     def fsmirrors(self) -> tuple[str]:
         self._populate_mirrors()
         return self._fsmirrors
+
+    @property
+    def hash_filter(self) -> Optional[_hash_filter]:
+        """A callable that filters out hash methods. It is cached
+        since it depends on an external object, ``_hash_filter``,
+        that is not under the responsibility of the current module.
+        """
+        try:
+            hash_filter = self._hash_filter
+        except AttributeError:
+            hash_filter = _hash_filter(self.settings.get("PORTAGE_CHECKSUM_FILTER", ""))
+            if hash_filter.transparent:
+                hash_filter = None
+            self._hash_filter = hash_filter
+        return hash_filter
 
 
 class FilesFetcher:

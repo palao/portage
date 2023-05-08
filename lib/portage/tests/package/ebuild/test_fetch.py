@@ -198,14 +198,14 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         portage.data.secpass = secpass_orig
 
     def test_restrict_mirror_attribute(self, pcheck_config_instance):
-        fake_settings = FakePortageConfig()
-        params = self.make_instance(settings=fake_settings)
+        settings = FakePortageConfig()
+        params = self.make_instance(settings=settings)
         self.assertFalse(params.restrict_mirror)
-        fake_settings.dict["PORTAGE_RESTRICT"] = "mirror nomirror"
+        settings.dict["PORTAGE_RESTRICT"] = "mirror nomirror"
         self.assertTrue(params.restrict_mirror)
-        fake_settings.dict["PORTAGE_RESTRICT"] = "mirror"
+        settings.dict["PORTAGE_RESTRICT"] = "mirror"
         self.assertTrue(params.restrict_mirror)
-        fake_settings.dict["PORTAGE_RESTRICT"] = "nomirror"
+        settings.dict["PORTAGE_RESTRICT"] = "nomirror"
         self.assertTrue(params.restrict_mirror)
 
     @patch("portage.package.ebuild.fetch.writemsg_stdout")
@@ -232,13 +232,12 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         pwritemsg_stdout.assert_not_called()
 
     def test_checksum_failure_max_tries(self, pcheck_config_instance):
-        fake_settings = FakePortageConfig()
-        params = self.make_instance(settings=fake_settings)
+        params = self.make_instance()
         self.assertEqual(
             params.checksum_failure_max_tries,
             _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
         )
-        fake_settings.dict["PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"] = "23"
+        fake_settings = FakePortageConfig(PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS=23)
         params = self.make_instance(settings=fake_settings)
         self.assertEqual(params.checksum_failure_max_tries, 23)
 
@@ -310,8 +309,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         pwritemsg.assert_not_called()
 
     def test_fetch_resume_size_default_value(self, pcheck_config_instance):
-        fake_settings = FakePortageConfig()
-        params = self.make_instance(settings=fake_settings)
+        params = self.make_instance()
         self.assertEqual(params.fetch_resume_size, 358400)
 
     @patch("portage.package.ebuild.fetch.writemsg")
@@ -374,8 +372,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
 
     def test_fetchonly(self, pcheck_config_instance):
         # The default case:
-        fake_settings = FakePortageConfig()
-        params = self.make_instance(settings=fake_settings)
+        params = self.make_instance()
         self.assertFalse(params.fetchonly)
         # PORTAGE_PARALLEL_FETCHONLY fixes fetchonly too:
         fake_settings = FakePortageConfig(PORTAGE_PARALLEL_FETCHONLY=True)
@@ -387,8 +384,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
 
     def test_parallel_fetchonly(self, pcheck_config_instance):
         # The default case:
-        fake_settings = FakePortageConfig()
-        params = self.make_instance(settings=fake_settings)
+        params = self.make_instance()
         self.assertFalse(params.parallel_fetchonly)
         # PORTAGE_PARALLEL_FETCHONLY determines parallel_fetchonly:
         fake_settings = FakePortageConfig(PORTAGE_PARALLEL_FETCHONLY=True)
@@ -412,14 +408,14 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         )
 
     def test_use_locks(self, pcheck_config_instance):
-        # Default [listonly == False and ("distlocks" in features)]:
         fake_settings = FakePortageConfig()
+        # Default [listonly == False and ("distlocks" in features)]:
         params = self.make_instance(settings=fake_settings)
         self.assertFalse(params.use_locks)
         # [listonly == True and ("distlocks" in features)]:
         params = self.make_instance(settings=fake_settings, listonly=True)
         self.assertFalse(params.use_locks)
-        # [listonly == True and ("distlocks" not in features)]:
+        # [l istonly == True and ("distlocks" not in features)]:
         fake_settings = FakePortageConfig(features={"distlocks"})
         params = self.make_instance(settings=fake_settings, listonly=True)
         self.assertFalse(params.use_locks)
@@ -510,6 +506,34 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertEqual(
             params.public_mirrors, ("ftp://own.org/gentoo", "http://eee.com/mir")
         )
+
+    @patch("portage.package.ebuild.fetch._hash_filter")
+    def test_default_hash_filter(self, p_hash_filter, pcheck_config_instance):
+        params = self.make_instance()
+        params.hash_filter
+        p_hash_filter.assert_called_once_with("")
+
+    @patch("portage.package.ebuild.fetch._hash_filter")
+    def test_hash_filter(self, p_hash_filter, pcheck_config_instance):
+        mysettings = FakePortageConfig(PORTAGE_CHECKSUM_FILTER="a b j")
+        p_hash_filter.return_value.transparent = False
+        params = self.make_instance(settings=mysettings)
+        self.assertEqual(params.hash_filter, p_hash_filter.return_value)
+        p_hash_filter.assert_called_once_with("a b j")
+
+    @patch("portage.package.ebuild.fetch._hash_filter")
+    def test_hash_filter_can_be_None(self, p_hash_filter, pcheck_config_instance):
+        p_hash_filter.return_value.transparent = True
+        params = self.make_instance()
+        self.assertIsNone(params.hash_filter)
+
+    @patch("portage.package.ebuild.fetch._hash_filter")
+    def test_hash_filter_is_called_once(self, p_hash_filter, pcheck_config_instance):
+        mysettings = FakePortageConfig(PORTAGE_CHECKSUM_FILTER="*")
+        params = self.make_instance(settings=mysettings)
+        params.hash_filter
+        params.hash_filter
+        p_hash_filter.assert_called_once_with("*")
 
 
 class FilesFetcherTestCase(unittest.TestCase):
