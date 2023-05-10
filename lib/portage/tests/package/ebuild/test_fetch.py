@@ -545,6 +545,12 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params.settings.dict["EBUILD_SKIP_MANIFEST"] = "something"
         self.assertFalse(params.skip_manifest)
 
+    def test_allow_missing_digests(self, pcheck_config_instance):
+        params = self.make_instance(allow_missing_digests=False)
+        self.assertFalse(params.allow_missing_digests)
+        params.settings.dict["EBUILD_SKIP_MANIFEST"] = "1"
+        self.assertTrue(params.allow_missing_digests)
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):

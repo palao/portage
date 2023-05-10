@@ -85,6 +85,7 @@ from portage.package.ebuild._config.features_set import features_set
 _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES = 5
 _DEFAULT_FETCH_RESUME_SIZE = "350K"
 _CHECKSUM_FAILURE_PRIMARYURI = 2
+_SETTINGS_OPTION_ENABLED = "1"
 
 
 class FetchStatus(IntEnum):
@@ -2089,12 +2090,13 @@ class FilesFetcherParameters:
     use_locks: InitVar[bool]
     try_mirrors: bool
     digests: Optional[dict]
-    allow_missing_digests: bool
+    allow_missing_digests: InitVar[bool]
     force: bool
 
-    def __post_init__(self, fetchonly, use_locks):
+    def __post_init__(self, fetchonly, use_locks, allow_missing_digests):
         self._fetchonly = fetchonly
         self._use_locks = use_locks
+        self._allow_missing_digests = allow_missing_digests
         self.validate_settings()
         self.validate_force_and_digests()
         self.validate_restrict_mirror()
@@ -2381,7 +2383,25 @@ class FilesFetcherParameters:
 
     @property
     def skip_manifest(self) -> bool:
-        return self.settings.get("EBUILD_SKIP_MANIFEST") == "1"
+        # Would it make sense if instead of only accepting "1", other values
+        # like "y" or "yes" or "true" (just random examples) are accepted too?
+        return self.settings.get("EBUILD_SKIP_MANIFEST") == _SETTINGS_OPTION_ENABLED
+
+    @property
+    def allow_missing_digests(self) -> bool:
+        """This property returns a value that is consistent with the
+        ``EBUILD_SKIP_MANIFEST`` setting, accessible through the
+        ``skip_manifest`` attribute.
+
+        The initial value given to ``allow_missing_digests`` at creation
+        time is a hint: it will be stored initially in an internal attribute
+        (``_allow_missing_digests``) but the *effective* value of
+        ``allow_missing_digests`` can be different, depending on
+        ``skip_manifest``.
+        """
+        if self.skip_manifest:
+            self._allow_missing_digests = True
+        return self._allow_missing_digests
 
 
 class FilesFetcher:
