@@ -2379,6 +2379,10 @@ class FilesFetcherParameters:
             self._hash_filter = hash_filter
         return hash_filter
 
+    @property
+    def skip_manifest(self) -> bool:
+        return self.settings.get("EBUILD_SKIP_MANIFEST") == "1"
+
 
 class FilesFetcher:
     """This class is in charge of all the logic related to fetching URIs given

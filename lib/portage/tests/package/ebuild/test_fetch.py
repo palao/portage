@@ -535,6 +535,16 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params.hash_filter
         p_hash_filter.assert_called_once_with("*")
 
+    def test_skip_manifest(self, pcheck_config_instance):
+        params = self.make_instance()
+        self.assertFalse(params.skip_manifest)
+        params.settings.dict["EBUILD_SKIP_MANIFEST"] = "1"
+        self.assertTrue(params.skip_manifest)
+        params.settings.dict["EBUILD_SKIP_MANIFEST"] = "yes"
+        self.assertFalse(params.skip_manifest)
+        params.settings.dict["EBUILD_SKIP_MANIFEST"] = "something"
+        self.assertFalse(params.skip_manifest)
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):
