@@ -602,6 +602,21 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         repo.load_manifest.assert_called_once_with(fake_pkgdir, fake_distdir)
         manifest.getTypeDigests.assert_called_once_with("DIST")
 
+    @patch("portage.package.ebuild.fetch.os")
+    def test_ro_distdirs(self, pos, _):
+        def isdir(name):
+            if name in ("/a", "/c", "/c/cc"):
+                return True
+            else:
+                return False
+
+        pos.path.isdir.side_effect = isdir
+        params = self.make_instance()
+        self.assertEqual(params.ro_distdirs, [])
+
+        params.settings.dict["PORTAGE_RO_DISTDIRS"] = "/a /b /c/cc"
+        self.assertEqual(params.ro_distdirs, ["/a", "/c/cc"])
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):

@@ -23,6 +23,7 @@ from urllib.parse import quote as urlquote
 from typing import Optional
 from enum import IntEnum
 from pathlib import Path
+import shlex
 
 import portage
 
@@ -2442,6 +2443,14 @@ class FilesFetcherParameters:
         else:
             digests = self._input_digests
         return digests
+
+    @property
+    def ro_distdirs(self) -> list[str]:
+        return [
+            x
+            for x in shlex.split(self.settings.get("PORTAGE_RO_DISTDIRS", ""))
+            if os.path.isdir(x)
+        ]
 
 
 class FilesFetcher:
