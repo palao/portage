@@ -617,6 +617,14 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params.settings.dict["PORTAGE_RO_DISTDIRS"] = "/a /b /c/cc"
         self.assertEqual(params.ro_distdirs, ["/a", "/c/cc"])
 
+    def test_restrict_fetch(self, _):
+        params = self.make_instance()
+        self.assertFalse(params.restrict_fetch)
+        params.settings.dict["PORTAGE_RESTRICT"] = "fetch"
+        self.assertTrue(params.restrict_fetch)
+        params.settings.dict["PORTAGE_RESTRICT"] = "sell buy fetch run"
+        self.assertTrue(params.restrict_fetch)
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):

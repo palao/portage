@@ -2179,6 +2179,10 @@ class FilesFetcherParameters:
         return self.settings.get("PORTAGE_RESTRICT", "").split()
 
     @property
+    def restrict_fetch(self) -> bool:
+        return "fetch" in self.restrict
+
+    @property
     def userfetch(self) -> bool:
         return portage.data.secpass >= 2 and "userfetch" in self.features
 
