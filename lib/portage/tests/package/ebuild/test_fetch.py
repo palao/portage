@@ -551,6 +551,57 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params.settings.dict["EBUILD_SKIP_MANIFEST"] = "1"
         self.assertTrue(params.allow_missing_digests)
 
+    def test_digests_untouched_if_not_none_and_no_skip_manifest(self, _):
+        input_digests = {"a": {"some": "example"}}
+        params = self.make_instance(digests=input_digests)
+        self.assertEqual(params.digests, input_digests)
+
+    def test_digests_are_empty_if_skip_manifest(self, _):
+        # If skip_manifest:
+        mysettings = FakePortageConfig(EBUILD_SKIP_MANIFEST="1")
+        params = self.make_instance(settings=mysettings)
+        # then, it does not matter what combination of
+        # pkgdir and input digests we have...
+        # (pkgdir is None) + (digests is None):
+        self.assertEqual(params.digests, {})
+        # (pkgdir != None) + (digests is None):
+        mysettings.dict["O"] = "/some/path"
+        self.assertEqual(params.digests, {})
+        # (pkgdir != None) + (digests != None):
+        input_digests = {"a": {"some": "example"}}
+        params = self.make_instance(settings=mysettings, digests=input_digests)
+        self.assertEqual(params.digests, {})
+        # (pkgdir is None) + (digests != None):
+        del mysettings.dict["O"]
+        self.assertEqual(params.digests, {})
+        # ...it is always {}
+
+    def test_no_digests_given_but_can_be_created(self, _):
+        """This is a strongly white box test (with lots of mocks).
+        That is why it is fragile. In the test, lots of implementation
+        details are explicitly tested. Unfortunately I could not find
+        a better way to test this case... (it doesn't mean there isn't
+        a better way, though).
+        """
+        mocked_repositories = Mock()
+        fake_distdir = "/tmp/portage/distdir"
+        fake_pkgdir = "/var/db/repos/gentoo/cat-egory/pname"
+        mysettings = FakePortageConfig(
+            O=fake_pkgdir,
+            DISTDIR=fake_distdir,
+        )
+        mysettings.repositories = mocked_repositories
+        repo = mocked_repositories.get_repo_for_location.return_value
+        manifest = repo.load_manifest.return_value
+        params = self.make_instance(settings=mysettings)
+
+        self.assertEqual(params.digests, manifest.getTypeDigests.return_value)
+        mocked_repositories.get_repo_for_location.assert_called_once_with(
+            "/var/db/repos/gentoo"
+        )
+        repo.load_manifest.assert_called_once_with(fake_pkgdir, fake_distdir)
+        manifest.getTypeDigests.assert_called_once_with("DIST")
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):

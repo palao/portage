@@ -2023,10 +2023,14 @@ class FilesFetcherParameters:
     Its main (only?) customer is the ``FilesFetcher`` class.
 
     Most of the attributes are properties and some of them are cached.
-    The decision between caching or not has *not* been taken on the basis
-    of performance considerations, but on whether the determination of
-    the attribute in question might require printing out a message, or
-    some other side effect.
+    The decision between caching or not has *not* been taken mainly
+    on the basis of performance considerations, but on other reasons
+    like:
+
+    - does the determination of the attribute depend on external
+      functionality?
+    - does the process of getting the attribute in question have some
+      side effect, like printing out a message?
 
     .. note::
 
@@ -2037,8 +2041,10 @@ class FilesFetcherParameters:
     """
 
     ########################################################################
-    # Requested vs. effective attribute values
-    # ----------------------------------------
+    #
+    # Note on requested vs. effective attribute values
+    # ------------------------------------------------
+    #
     #  The *requested* attribute value is the value given at creation time.
     # The *effective* attribute value is the value that is actually returned
     # by the instance.
@@ -2050,10 +2056,25 @@ class FilesFetcherParameters:
     #  The current implementation only makes this distinction for those attrs.
     # for which there is a potential conflict (like ``fetchonly`` which
     # effective value depends on ``parallel_fetchonly``).
+    # That distinction is done as follows (taking as an example ``fetchonly``):
+    # - ``fetchonly`` is a class attribute of type ``InitVar``;
+    # - ``__post_init__`` sets ``_fetchonly`` to hold the input (requested)
+    #   value;
+    # - there is a ``fetchonly`` property that returns a value depending
+    #   on ``_fetchonly`` and on other conditions (in this particular
+    #   example, it depends on ``parallel_fetchonly``).
+    #
+    # ---
+    #
     #  Would it be better to make a distinction between requested parameters
-    # and effective ones in *all* the cases? I think it wouldn't.
+    # and effective ones in *all* the cases? I think it wouldn't, but it must
+    # be rethought.
     #
     ########################################################################
+    #
+    # Note on the order of printed messages
+    # -------------------------------------
+    #
     #  In the old implementation, the parsing functionality of some
     # attributes, like
     #
@@ -2080,7 +2101,7 @@ class FilesFetcherParameters:
     #   def __post_init__(self):
     #       ...
     #       self.parse_checksum_failure_max_tries()
-    #
+    ########################################################################
 
     _: KW_ONLY
     settings: config
@@ -2089,13 +2110,14 @@ class FilesFetcherParameters:
     locks_in_subdir: str
     use_locks: InitVar[bool]
     try_mirrors: bool
-    digests: Optional[dict]
+    digests: InitVar[Optional[dict]] = None
     allow_missing_digests: InitVar[bool]
     force: bool
 
-    def __post_init__(self, fetchonly, use_locks, allow_missing_digests):
+    def __post_init__(self, fetchonly, use_locks, digests, allow_missing_digests):
         self._fetchonly = fetchonly
         self._use_locks = use_locks
+        self._input_digests = digests
         self._allow_missing_digests = allow_missing_digests
         self.validate_settings()
         self.validate_force_and_digests()
@@ -2402,6 +2424,24 @@ class FilesFetcherParameters:
         if self.skip_manifest:
             self._allow_missing_digests = True
         return self._allow_missing_digests
+
+    @property
+    def digests(self) -> dict[str, dict]:
+        pkgdir = self.settings.get("O")
+        if self._input_digests is None and not (pkgdir is None or self.skip_manifest):
+            digests = (
+                self.settings.repositories.get_repo_for_location(
+                    os.path.dirname(os.path.dirname(pkgdir))
+                )
+                .load_manifest(pkgdir, self.settings["DISTDIR"])
+                .getTypeDigests("DIST")
+            )
+        elif self._input_digests is None or self.skip_manifest:
+            # no digests because fetch was not called for a specific package
+            digests = {}
+        else:
+            digests = self._input_digests
+        return digests
 
 
 class FilesFetcher:
