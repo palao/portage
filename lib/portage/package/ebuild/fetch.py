@@ -2192,6 +2192,10 @@ class FilesFetcherParameters:
         return "mirror" in self.restrict or "nomirror" in self.restrict
 
     @property
+    def force_mirror(self) -> bool:
+        return "force-mirror" in self.features and not self.restrict_mirror
+
+    @property
     def checksum_failure_max_tries(self) -> int:
         """It limits how many times a file is tried to be downloaded.
 

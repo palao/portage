@@ -625,6 +625,21 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params.settings.dict["PORTAGE_RESTRICT"] = "sell buy fetch run"
         self.assertTrue(params.restrict_fetch)
 
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcherParameters.restrict_mirror",
+        new_callable=PropertyMock,
+    )
+    def test_force_mirror(self, mrestrict_mirror, _):
+        mrestrict_mirror.return_value = False
+        params = self.make_instance()
+        self.assertFalse(params.force_mirror)
+        params.settings.features.add("force-mirror")
+        self.assertTrue(params.force_mirror)
+        mrestrict_mirror.return_value = True
+        self.assertFalse(params.force_mirror)
+        params.settings.features.pop()
+        self.assertFalse(params.force_mirror)
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):
