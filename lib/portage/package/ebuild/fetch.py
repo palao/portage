@@ -2469,6 +2469,60 @@ class FilesFetcher:
     def __init__(self, uris: Mapping, params: FilesFetcherParameters):
         if not uris:
             raise FetchingUnnecessary()
+        self.uris = uris
+        self.params = params
+
+    @property
+    def file_uri_tuples(self) -> tuple[tuple[DistfileName, Optional[str]]]:
+        # The return's type is too complex. Maybe need to create a new type?
+        file_uri_tuples_list = []
+        if hasattr(self.uris, "items"):
+            for myfile, uri_set in self.uris.items():
+                for myuri in uri_set:
+                    file_uri_tuples_list.append(
+                        (
+                            DistfileName(
+                                myfile, digests=self.params.digests.get(myfile)
+                            ),
+                            myuri,
+                        )
+                    )
+                if not uri_set:
+                    file_uri_tuples_list.append(
+                        (
+                            DistfileName(
+                                myfile, digests=self.params.digests.get(myfile)
+                            ),
+                            None,
+                        )
+                    )
+        else:
+            for myuri in self.uris:
+                if urlparse(myuri).scheme:
+                    file_uri_tuples_list.append(
+                        (
+                            DistfileName(
+                                os.path.basename(myuri),
+                                digests=self.params.digests.get(
+                                    os.path.basename(myuri)
+                                ),
+                            ),
+                            myuri,
+                        )
+                    )
+                else:
+                    file_uri_tuples_list.append(
+                        (
+                            DistfileName(
+                                os.path.basename(myuri),
+                                digests=self.params.digests.get(
+                                    os.path.basename(myuri)
+                                ),
+                            ),
+                            None,
+                        )
+                    )
+        return tuple(file_uri_tuples_list)
 
 
 def new_fetch(

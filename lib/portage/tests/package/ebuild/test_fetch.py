@@ -20,6 +20,7 @@ from portage.package.ebuild.fetch import (
     FetchingUnnecessary,
     _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
     _DEFAULT_FETCH_RESUME_SIZE,
+    DistfileName,
 )
 from portage.exception import PortageException
 from portage.localization import _
@@ -576,6 +577,8 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         self.assertEqual(params.digests, {})
         # ...it is always {}
 
+    # I would mark it as fragile:
+    # @pytest.mark.fragile
     def test_no_digests_given_but_can_be_created(self, _):
         """This is a strongly white box test (with lots of mocks).
         That is why it is fragile. In the test, lots of implementation
@@ -645,6 +648,81 @@ class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):
         with self.assertRaises(FetchingUnnecessary):
             FilesFetcher({}, Mock())
+
+    def test_instance_has_expected_attributes(self):
+        fake_uris = {"a": {"cv": "e"}}
+        fake_params = Mock()
+        ff = FilesFetcher(uris=fake_uris, params=fake_params)
+        self.assertEqual(ff.uris, fake_uris)
+        self.assertEqual(ff.params, fake_params)
+
+    def test_file_uri_tuples(self):
+        digests1 = {"BLAKE2": "a1b2c3", "SAH512": "dd7720", "size": 32}
+        digests2 = {"BLAKE2": "91b3c3", "SAH512": "dd7720", "size": 324}
+        digestsx = {"BLAKE2": "55de91b3c3ff2", "SAH512": "ae305ff987bc2", "size": 1440}
+        digests3 = {"BLAKE2": "4df2", "SAH512": "eaeaae", "size": 970}
+        digests = {
+            "file1.tar.gz": digests1,
+            "file2.tar.gz": digests2,
+            "filex.tar.gz": digestsx,
+            "file3.tar.xz": digests3,
+        }
+        params = Mock(digests=digests)
+        dict_uris = {
+            "file1.tar.gz": [
+                "https://somewhere/file1.tar.gz",
+                "ftp://somewhere2/file1.tar.gz",
+            ],
+            "file2.tar.gz": [],
+            "filex.tar.gz": [
+                "http://monkey.monkey/filex.tar.gz",
+            ],
+        }
+        fetcher = FilesFetcher(uris=dict_uris, params=params)
+        self.assertEqual(
+            fetcher.file_uri_tuples,
+            (
+                (
+                    DistfileName("file1.tar.gz", digests=digests1),
+                    "https://somewhere/file1.tar.gz",
+                ),
+                (
+                    DistfileName("file1.tar.gz", digests=digests1),
+                    "ftp://somewhere2/file1.tar.gz",
+                ),
+                (DistfileName("file2.tar.gz", digests=digests2), None),
+                (
+                    DistfileName("filex.tar.gz", digests=digestsx),
+                    "http://monkey.monkey/filex.tar.gz",
+                ),
+            ),
+        )
+
+        just_uris = [
+            "https://somewhere/file1.tar.gz",
+            "ftp://somewhere2/file1.tar.gz",
+            "http://monkey.monkey/filex.tar.gz",
+            "/some/direct/path/to/file3.tar.xz",
+        ]
+        fetcher = FilesFetcher(uris=just_uris, params=params)
+        self.assertEqual(
+            fetcher.file_uri_tuples,
+            (
+                (
+                    DistfileName("file1.tar.gz", digests=digests1),
+                    "https://somewhere/file1.tar.gz",
+                ),
+                (
+                    DistfileName("file1.tar.gz", digests=digests1),
+                    "ftp://somewhere2/file1.tar.gz",
+                ),
+                (
+                    DistfileName("filex.tar.gz", digests=digestsx),
+                    "http://monkey.monkey/filex.tar.gz",
+                ),
+                (DistfileName("file3.tar.xz", digests=digests3), None),
+            ),
+        )
 
 
 @patch("portage.package.ebuild.fetch.FilesFetcher")
