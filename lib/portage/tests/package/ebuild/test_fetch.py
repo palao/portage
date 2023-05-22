@@ -680,8 +680,8 @@ class FilesFetcherTestCase(unittest.TestCase):
         }
         fetcher = FilesFetcher(uris=dict_uris, params=params)
         self.assertEqual(
-            fetcher.file_uri_tuples,
-            (
+            list(fetcher.file_uri_tuples),
+            [
                 (
                     DistfileName("file1.tar.gz", digests=digests1),
                     "https://somewhere/file1.tar.gz",
@@ -695,7 +695,7 @@ class FilesFetcherTestCase(unittest.TestCase):
                     DistfileName("filex.tar.gz", digests=digestsx),
                     "http://monkey.monkey/filex.tar.gz",
                 ),
-            ),
+            ],
         )
 
         just_uris = [
@@ -706,8 +706,8 @@ class FilesFetcherTestCase(unittest.TestCase):
         ]
         fetcher = FilesFetcher(uris=just_uris, params=params)
         self.assertEqual(
-            fetcher.file_uri_tuples,
-            (
+            list(fetcher.file_uri_tuples),
+            [
                 (
                     DistfileName("file1.tar.gz", digests=digests1),
                     "https://somewhere/file1.tar.gz",
@@ -721,7 +721,7 @@ class FilesFetcherTestCase(unittest.TestCase):
                     "http://monkey.monkey/filex.tar.gz",
                 ),
                 (DistfileName("file3.tar.xz", digests=digests3), None),
-            ),
+            ],
         )
 
 

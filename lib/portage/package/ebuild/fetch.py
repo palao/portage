@@ -20,7 +20,7 @@ from collections import OrderedDict
 from collections.abc import Mapping
 from urllib.parse import urlparse
 from urllib.parse import quote as urlquote
-from typing import Optional
+from typing import Optional, Iterator
 from enum import IntEnum
 from pathlib import Path
 import shlex
@@ -468,6 +468,9 @@ class DistfileName(str):
                 else:
                     return False
         return bool(matches)
+
+
+DistfileNameAndURI = tuple[DistfileName, Optional[str]]
 
 
 class FlatLayout:
@@ -2033,6 +2036,9 @@ class FilesFetcherParameters:
     - does the process of getting the attribute in question have some
       side effect, like printing out a message?
 
+    Since the ``fetch`` function is typically interacting with the
+    network, CPU performance has a limited impact.
+
     .. note::
 
        The current implementation caches attributes *by hand*.
@@ -2102,6 +2108,7 @@ class FilesFetcherParameters:
     #   def __post_init__(self):
     #       ...
     #       self.parse_checksum_failure_max_tries()
+    #
     ########################################################################
 
     _: KW_ONLY
@@ -2473,56 +2480,27 @@ class FilesFetcher:
         self.params = params
 
     @property
-    def file_uri_tuples(self) -> tuple[tuple[DistfileName, Optional[str]]]:
-        # The return's type is too complex. Maybe need to create a new type?
-        file_uri_tuples_list = []
+    def file_uri_tuples(self) -> Iterator[DistfileNameAndURI]:
         if hasattr(self.uris, "items"):
             for myfile, uri_set in self.uris.items():
-                for myuri in uri_set:
-                    file_uri_tuples_list.append(
-                        (
-                            DistfileName(
-                                myfile, digests=self.params.digests.get(myfile)
-                            ),
-                            myuri,
-                        )
-                    )
                 if not uri_set:
-                    file_uri_tuples_list.append(
-                        (
-                            DistfileName(
-                                myfile, digests=self.params.digests.get(myfile)
-                            ),
-                            None,
-                        )
+                    uri_set = [None]
+                for myuri in uri_set:
+                    yield (
+                        DistfileName(myfile, digests=self.params.digests.get(myfile)),
+                        myuri,
                     )
         else:
             for myuri in self.uris:
+                filename = os.path.basename(myuri)
                 if urlparse(myuri).scheme:
-                    file_uri_tuples_list.append(
-                        (
-                            DistfileName(
-                                os.path.basename(myuri),
-                                digests=self.params.digests.get(
-                                    os.path.basename(myuri)
-                                ),
-                            ),
-                            myuri,
-                        )
-                    )
+                    uri = myuri
                 else:
-                    file_uri_tuples_list.append(
-                        (
-                            DistfileName(
-                                os.path.basename(myuri),
-                                digests=self.params.digests.get(
-                                    os.path.basename(myuri)
-                                ),
-                            ),
-                            None,
-                        )
-                    )
-        return tuple(file_uri_tuples_list)
+                    uri = None
+                yield (
+                    DistfileName(filename, digests=self.params.digests.get(filename)),
+                    uri,
+                )
 
 
 def new_fetch(
