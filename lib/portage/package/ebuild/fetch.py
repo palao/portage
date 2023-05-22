@@ -2482,21 +2482,21 @@ class FilesFetcher:
     @property
     def file_uri_tuples(self) -> Iterator[DistfileNameAndURI]:
         if hasattr(self.uris, "items"):
-            for myfile, uri_set in self.uris.items():
-                if not uri_set:
-                    uri_set = [None]
-                for myuri in uri_set:
-                    yield (
-                        DistfileName(myfile, digests=self.params.digests.get(myfile)),
-                        myuri,
-                    )
+            uris = self.uris
         else:
-            for myuri in self.uris:
-                filename = os.path.basename(myuri)
-                if urlparse(myuri).scheme:
-                    uri = myuri
+            uris = {}
+            for would_be_uri in self.uris:
+                filename = os.path.basename(would_be_uri)
+                uri_list = uris.setdefault(filename, [])
+                if urlparse(would_be_uri).scheme:
+                    uri = would_be_uri
                 else:
                     uri = None
+                uri_list.append(uri)
+        for filename, uri_set in uris.items():
+            if not uri_set:
+                uri_set = [None]
+            for uri in uri_set:
                 yield (
                     DistfileName(filename, digests=self.params.digests.get(filename)),
                     uri,
