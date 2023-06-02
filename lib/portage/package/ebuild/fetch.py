@@ -89,7 +89,7 @@ _CHECKSUM_FAILURE_PRIMARYURI = 2
 _SETTINGS_OPTION_ENABLED = "1"
 
 
-class FetchStatus(IntEnum):
+class FetchExitStatus(IntEnum):
     ERROR = 0
     OK = 1
 
@@ -2529,9 +2529,9 @@ def new_fetch(
         )
         FilesFetcher(myuris, fetch_params)
     except FilesFetcherValidationError:
-        return FetchStatus.ERROR
+        return FetchExitStatus.ERROR
     except FetchingUnnecessary:
-        return FetchStatus.OK
+        return FetchExitStatus.OK
 
 
 #     fetcher = FilesFetcher(params)

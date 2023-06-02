@@ -14,7 +14,7 @@ from pathlib import Path
 from portage.package.ebuild.fetch import (
     FilesFetcherParameters,
     FilesFetcher,
-    FetchStatus,
+    FetchExitStatus,
     new_fetch,
     FilesFetcherValidationError,
     FetchingUnnecessary,
@@ -61,14 +61,14 @@ class FakePortageConfig:
         return self._thirdpartymirrors
 
 
-class FetchStatusTestCase(unittest.TestCase):
-    """The main purpose of testing ``FetchStatus`` is to ensure
+class FetchExitStatusTestCase(unittest.TestCase):
+    """The main purpose of testing ``FetchExitStatus`` is to ensure
     backwards compatibility in the values.
     """
 
     def test_values(self):
-        self.assertEqual(FetchStatus.OK, 1)
-        self.assertEqual(FetchStatus.ERROR, 0)
+        self.assertEqual(FetchExitStatus.OK, 1)
+        self.assertEqual(FetchExitStatus.ERROR, 0)
 
 
 @patch("portage.package.ebuild.fetch.check_config_instance")
@@ -817,7 +817,7 @@ class FetchTestCase(unittest.TestCase):
         result = new_fetch(mmyuris, msettings)
         self.assertEqual(
             result,
-            FetchStatus.ERROR,
+            FetchExitStatus.ERROR,
         )
 
     def test_return_ok_in_trivial_cases(self, mparams, mfetcher):
@@ -827,5 +827,5 @@ class FetchTestCase(unittest.TestCase):
         result = new_fetch(mmyuris, msettings)
         self.assertEqual(
             result,
-            FetchStatus.OK,
+            FetchExitStatus.OK,
         )
