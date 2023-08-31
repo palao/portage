@@ -20,6 +20,7 @@ from portage.package.ebuild.fetch import (
     FetchingUnnecessary,
     _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES,
     _DEFAULT_FETCH_RESUME_SIZE,
+    _DEFAULT_MIRROR_CACHE_FILENAME,
     DistfileName,
 )
 from portage.exception import PortageException
@@ -643,6 +644,18 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         params.settings.features.pop()
         self.assertFalse(params.force_mirror)
 
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcherParameters.distdir_writable",
+        new_callable=PropertyMock,
+    )
+    def test_mirror_cache(self, mdistdir_writable, _):
+        fake_settings = FakePortageConfig(DISTDIR="/x/u")
+        mdistdir_writable.return_value = True
+        params = self.make_instance(settings=fake_settings)
+        self.assertEqual(params.mirror_cache, "/x/u/" + _DEFAULT_MIRROR_CACHE_FILENAME)
+        mdistdir_writable.return_value = False
+        self.assertIsNone(params.mirror_cache)
+
 
 class FilesFetcherTestCase(unittest.TestCase):
     def test_constructor_raises_FetchingUnnecessary_if_no_uris(self):
@@ -723,6 +736,17 @@ class FilesFetcherTestCase(unittest.TestCase):
                 (DistfileName("file3.tar.xz", digests=digests3), None),
             ],
         )
+
+    @patch("portage.package.ebuild.fetch.FilesFetcher._arrange_uris")
+    def test__arrange_uris_called_in_init(self, parrange_uris):
+        """``_arrange_uris`` must be called before the files are fetched.
+        This test ensures that.
+        """
+        FilesFetcher({"a": "b"}, Mock())
+        parrange_uris.assert_called_once_with()
+
+    def test_arrange_uris_bla_bla(self):
+        self.fail("write me!")
 
 
 @patch("portage.package.ebuild.fetch.FilesFetcher")

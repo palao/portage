@@ -87,6 +87,7 @@ _DEFAULT_CHECKSUM_FAILURES_MAX_TRIES = 5
 _DEFAULT_FETCH_RESUME_SIZE = "350K"
 _CHECKSUM_FAILURE_PRIMARYURI = 2
 _SETTINGS_OPTION_ENABLED = "1"
+_DEFAULT_MIRROR_CACHE_FILENAME = ".mirror-cache.json"
 
 
 class FetchExitStatus(IntEnum):
@@ -1064,7 +1065,9 @@ def fetch(
         if myfile not in filedict:
             filedict[myfile] = []
             if distdir_writable:
-                mirror_cache = os.path.join(mysettings["DISTDIR"], ".mirror-cache.json")
+                mirror_cache = os.path.join(
+                    mysettings["DISTDIR"], _DEFAULT_MIRROR_CACHE_FILENAME
+                )
             else:
                 mirror_cache = None
 
@@ -2467,6 +2470,16 @@ class FilesFetcherParameters:
             if os.path.isdir(x)
         ]
 
+    @property
+    def mirror_cache(self):
+        if self.distdir_writable:
+            cache = os.path.join(
+                self.settings["DISTDIR"], _DEFAULT_MIRROR_CACHE_FILENAME
+            )
+        else:
+            cache = None
+        return cache
+
 
 class FilesFetcher:
     """This class is in charge of all the logic related to fetching URIs given
@@ -2478,6 +2491,7 @@ class FilesFetcher:
             raise FetchingUnnecessary()
         self.uris = uris
         self.params = params
+        self._arrange_uris()
 
     @property
     def file_uri_tuples(self) -> Iterator[DistfileNameAndURI]:
@@ -2501,6 +2515,9 @@ class FilesFetcher:
                     DistfileName(filename, digests=self.params.digests.get(filename)),
                     uri,
                 )
+
+    def _arrange_uris(self):
+        ...
 
 
 def new_fetch(
