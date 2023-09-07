@@ -2533,7 +2533,7 @@ def new_fetch(
     digests=None,
     allow_missing_digests=True,
     force=False,
-):
+) -> FetchExitStatus:
     try:
         fetch_params = FilesFetcherParameters(
             settings=mysettings,
@@ -2546,14 +2546,10 @@ def new_fetch(
             allow_missing_digests=allow_missing_digests,
             force=force,
         )
-        FilesFetcher(myuris, fetch_params)
+        fetcher = FilesFetcher(myuris, fetch_params)
     except FilesFetcherValidationError:
         return FetchExitStatus.ERROR
     except FetchingUnnecessary:
         return FetchExitStatus.OK
 
-
-#     fetcher = FilesFetcher(params)
-#     for ... in ...:
-#         fetcher.fetch(...)
-#     ...
+    return fetcher()

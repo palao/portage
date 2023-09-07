@@ -834,7 +834,7 @@ class FetchTestCase(unittest.TestCase):
             force=False,
         )
 
-    def test_return_error_on_validation_error(self, mparams, mfetcher):
+    def test_returns_error_on_validation_error(self, mparams, mfetcher):
         mparams.side_effect = FilesFetcherValidationError()
         mmyuris = Mock()
         msettings = Mock()
@@ -844,7 +844,7 @@ class FetchTestCase(unittest.TestCase):
             FetchExitStatus.ERROR,
         )
 
-    def test_return_ok_in_trivial_cases(self, mparams, mfetcher):
+    def test_returns_ok_in_trivial_cases(self, mparams, mfetcher):
         mparams.side_effect = FetchingUnnecessary()
         mmyuris = Mock()
         msettings = Mock()
@@ -853,3 +853,10 @@ class FetchTestCase(unittest.TestCase):
             result,
             FetchExitStatus.OK,
         )
+
+    def test_returns_calls_return_in_normal_cases(self, mparams, mfetcher):
+        mmyuris = Mock()
+        msettings = Mock()
+        fetcher_instance = mfetcher.return_value
+        result = new_fetch(mmyuris, msettings)
+        self.assertEqual(result, fetcher_instance.return_value)
