@@ -2125,7 +2125,9 @@ class FilesFetcherParameters:
     allow_missing_digests: InitVar[bool]
     force: bool
 
-    def __post_init__(self, fetchonly, use_locks, digests, allow_missing_digests):
+    def __post_init__(
+        self, fetchonly, use_locks, digests, allow_missing_digests
+    ) -> None:
         self._fetchonly = fetchonly
         self._use_locks = use_locks
         self._input_digests = digests
@@ -2135,16 +2137,16 @@ class FilesFetcherParameters:
         self.validate_restrict_mirror()
         self.validate_use_locks_and_ro_distdir()
 
-    def validate_settings(self):
+    def validate_settings(self) -> None:
         check_config_instance(self.settings)
 
-    def validate_force_and_digests(self):
+    def validate_force_and_digests(self) -> None:
         if self.force and self.digests:
             raise PortageException(
                 _("fetch: force=True is not allowed when digests are provided")
             )
 
-    def validate_restrict_mirror(self):
+    def validate_restrict_mirror(self) -> None:
         if self.restrict_mirror:
             if ("mirror" in self.features) and ("lmirror" not in self.features):
                 writemsg_stdout(
@@ -2153,7 +2155,7 @@ class FilesFetcherParameters:
                 )
                 raise FetchingUnnecessary()
 
-    def validate_use_locks_and_ro_distdir(self):
+    def validate_use_locks_and_ro_distdir(self) -> None:
         #  As it is now (April 2023), this validator does nothing apart
         # from displaying a message. Is this enough?
         # Should it raise?
@@ -2471,7 +2473,7 @@ class FilesFetcherParameters:
         ]
 
     @property
-    def mirror_cache(self):
+    def mirror_cache(self) -> Optional[str]:  # Optional[Path]
         if self.distdir_writable:
             cache = os.path.join(
                 self.settings["DISTDIR"], _DEFAULT_MIRROR_CACHE_FILENAME
@@ -2486,7 +2488,7 @@ class FilesFetcher:
     a valid set of parameters (``FilesFetcherParameters``).
     """
 
-    def __init__(self, uris: Mapping, params: FilesFetcherParameters):
+    def __init__(self, uris: Mapping, params: FilesFetcherParameters) -> None:
         if not uris:
             raise FetchingUnnecessary()
         self.uris = uris
