@@ -2493,7 +2493,7 @@ class FilesFetcher:
             raise FetchingUnnecessary()
         self.uris = uris
         self.params = params
-        self._arrange_uris()
+        self._lay_out_file_to_uris_mappings()
 
     @property
     def file_uri_tuples(self) -> Iterator[DistfileNameAndURI]:
@@ -2518,8 +2518,16 @@ class FilesFetcher:
                     uri,
                 )
 
-    def _arrange_uris(self):
+    def _lay_out_file_to_uris_mappings(self) -> None:
         ...
+
+    def _order_primaryuri_dict_values(self) -> None:
+        """Order _primaryuri_dict values to match that in SRC_URI.
+        This method assumes that the instance already has an attribute
+        called ``_primaryuri_dict`` which is a mapping: file -> list[uri]
+        """
+        for uris in self._primaryuri_dict.values():
+            uris.reverse()
 
 
 def new_fetch(

@@ -737,16 +737,27 @@ class FilesFetcherTestCase(unittest.TestCase):
             ],
         )
 
-    @patch("portage.package.ebuild.fetch.FilesFetcher._arrange_uris")
-    def test__arrange_uris_called_in_init(self, parrange_uris):
-        """``_arrange_uris`` must be called before the files are fetched.
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test__lay_out_file_to_uris_mappings_called_in_init(
+        self, play_out_file_to_uris_mappings
+    ):
+        """``_lay_out_file_to_uris_mappings`` must be called before the files are fetched.
         This test ensures that.
         """
         FilesFetcher({"a": "b"}, Mock())
-        parrange_uris.assert_called_once_with()
+        play_out_file_to_uris_mappings.assert_called_once_with()
 
-    def test_arrange_uris_bla_bla(self):
-        self.fail("write me!")
+    # def test_lay_out_file_to_uris_mappings_bla_bla(self):
+    #     self.fail("write me!")
+
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test__order_primaryuri_dict_values(self, play_out_file_to_uris_mappings):
+        fetcher = FilesFetcher({"a": "b"}, Mock())
+        fetcher._primaryuri_dict = {"x": ["1", "2", "3"], "y": [".", "..."]}
+        fetcher._order_primaryuri_dict_values()
+        self.assertEqual(
+            fetcher._primaryuri_dict, {"x": ["3", "2", "1"], "y": ["...", "."]}
+        )
 
 
 @patch("portage.package.ebuild.fetch.FilesFetcher")
