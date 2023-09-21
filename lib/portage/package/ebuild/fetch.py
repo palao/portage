@@ -2521,6 +2521,21 @@ class FilesFetcher:
     def _lay_out_file_to_uris_mappings(self) -> None:
         ...
 
+    def _init_file_to_uris_mappings(self) -> None:
+        """Method that adds some mappings to the instance:
+
+        - filedict
+        - primaryuri_dict, and
+        - thirdpartymirror_uris
+
+        which have the following form::
+
+           {distfile1: [uri1, uri2, ...], distfile2: [uri3, ...], ...}
+        """
+        self.filedict = OrderedDict()
+        self.primaryuri_dict = {}
+        self.thirdpartymirror_uris = {}
+
     def _order_primaryuri_dict_values(self) -> None:
         """Order _primaryuri_dict values to match that in SRC_URI.
         This method assumes that the instance already has an attribute

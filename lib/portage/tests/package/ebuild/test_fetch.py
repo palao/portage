@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import Mock, patch, call, PropertyMock
 from typing import Optional
 from pathlib import Path
+from collections import OrderedDict
 
 from portage.package.ebuild.fetch import (
     FilesFetcherParameters,
@@ -758,6 +759,29 @@ class FilesFetcherTestCase(unittest.TestCase):
         self.assertEqual(
             fetcher._primaryuri_dict, {"x": ["3", "2", "1"], "y": ["...", "."]}
         )
+
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test__init_file_to_uris_mappings(self, play_out_file_to_uris_mappings):
+        """Testing that the _init_file_to_uris_mappings method is the
+        way to add the
+
+        - filedict
+        - primaryuri_dict, and
+        - thirdpartymirror_uris
+
+        mappings to the FilesFetcher instance.
+        """
+        fetcher = FilesFetcher({"a": "b"}, Mock())
+        with self.assertRaises(AttributeError):
+            fetcher.filedict
+        with self.assertRaises(AttributeError):
+            fetcher.primaryuri_dict
+        with self.assertRaises(AttributeError):
+            fetcher.thirdpartymirror_uris
+        fetcher._init_file_to_uris_mappings()
+        self.assertEqual(fetcher.filedict, OrderedDict())
+        self.assertEqual(fetcher.primaryuri_dict, {})
+        self.assertEqual(fetcher.thirdpartymirror_uris, {})
 
 
 @patch("portage.package.ebuild.fetch.FilesFetcher")
