@@ -4,7 +4,6 @@
 __all__ = ["fetch"]
 
 import errno
-import functools
 import glob
 import itertools
 import json
@@ -24,6 +23,7 @@ from typing import Optional, Iterator
 from enum import IntEnum
 from pathlib import Path
 import shlex
+from functools import partial
 
 import portage
 
@@ -1087,9 +1087,7 @@ def fetch(
 
             for l in itertools.chain(*location_lists):
                 filedict[myfile].append(
-                    functools.partial(
-                        get_mirror_url, l, myfile, mysettings, mirror_cache
-                    )
+                    partial(get_mirror_url, l, myfile, mysettings, mirror_cache)
                 )
         if myuri is None:
             continue
@@ -1591,7 +1589,7 @@ def fetch(
             tried_locations = set()
             while uri_list:
                 loc = uri_list.pop()
-                if isinstance(loc, functools.partial):
+                if isinstance(loc, partial):
                     loc = loc()
                 # Eliminate duplicates here in case we've switched to
                 # "primaryuri" mode on the fly due to a checksum failure.
@@ -2535,6 +2533,72 @@ class FilesFetcher:
         self.filedict = OrderedDict()
         self.primaryuri_dict = {}
         self.thirdpartymirror_uris = {}
+
+    def _ensure_in_filedict_with_generic_mirrors(
+        self, distfile: DistfileName, override_mirror: bool
+    ) -> None:
+        """Given a ``DistfileName``, the URI-specific ``override_mirror`` value
+        and some global options, ensures that the file is in the collection
+        of files to be downloaded with the proper URLs.
+
+        There are three conditions for a distfile to only local mirrors:
+
+        1. ``restrict_fetch = True``,
+          ``restrict_mirror = True``, and
+          ``override_mirror = False``
+        2. ``restrict_fetch = True``,
+          ``restrict_mirror = False``, and
+          ``override_mirror = False``
+        3. ``restrict_fetch = False``,
+          ``restrict_mirror = True``, and
+          ``override_mirror = False``
+
+        There are five conditions for a distfile to have local and public
+        mirrors:
+
+        1. ``restrict_fetch = True``,
+          ``restrict_mirror = True``, and
+          ``override_mirror = True``
+        2. ``restrict_fetch = True``,
+          ``restrict_mirror = False``, and
+          ``override_mirror = True``
+        3. ``restrict_fetch = False``,
+          ``restrict_mirror = True``, and
+          ``override_mirror = True``
+        4. ``restrict_fetch = False``,
+          ``restrict_mirror = False``, and
+          ``override_mirror = True``
+        5. ``restrict_fetch = False``,
+          ``restrict_mirror = False``, and
+          ``override_mirror = False``
+        """
+        if distfile not in self.filedict:
+            self.filedict[distfile] = []
+
+            # fetch restriction implies mirror restriction
+            # but fetch unrestriction does not grant mirror permission
+            file_restrict_mirror = (
+                self.params.restrict_fetch or self.params.restrict_mirror
+            ) and not override_mirror
+
+            # With fetch restriction, a normal uri may only be fetched from
+            # custom local mirrors (if available).  A mirror:// uri may also
+            # be fetched from specific mirrors (effectively overriding fetch
+            # restriction, but only for specific mirrors).
+            location_lists = [self.params.local_mirrors]
+            if not file_restrict_mirror:
+                location_lists.append(self.params.public_mirrors)
+
+            for l in itertools.chain(*location_lists):
+                self.filedict[distfile].append(
+                    partial(
+                        get_mirror_url,
+                        l,
+                        distfile,
+                        self.params.settings,
+                        self.params.mirror_cache,
+                    )
+                )
 
     def _order_primaryuri_dict_values(self) -> None:
         """Order _primaryuri_dict values to match that in SRC_URI.

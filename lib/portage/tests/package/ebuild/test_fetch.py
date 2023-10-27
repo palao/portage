@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch, call, PropertyMock
 from typing import Optional
 from pathlib import Path
 from collections import OrderedDict
+from dataclasses import dataclass, field
 
 from portage.package.ebuild.fetch import (
     FilesFetcherParameters,
@@ -23,6 +24,7 @@ from portage.package.ebuild.fetch import (
     _DEFAULT_FETCH_RESUME_SIZE,
     _DEFAULT_MIRROR_CACHE_FILENAME,
     DistfileName,
+    get_mirror_url,
 )
 from portage.exception import PortageException
 from portage.localization import _
@@ -495,7 +497,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
     def test_populated_mirrors_if_try_mirrors(
         self, mcustom_mirrors, pcheck_config_instance
     ):
-        gmirrors = "/var/my/stuff/ ftp://own.org/gentoo http://eee.com/mir/ /tmp/x"
+        gmirrors = "/var/my/stuff/ ftp://own.borg/gentoo http://eee.example/mir/ /tmp/x"
         mysettings = FakePortageConfig(GENTOO_MIRRORS=gmirrors, PORTAGE_CONFIGROOT="/")
         mcustom_mirrors.return_value = {
             "local": ["/some/path", "otherthing:/what/not", "a://h/c", "/b/c/z"],
@@ -507,7 +509,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         )
         self.assertEqual(params.local_mirrors, ("otherthing:/what/not", "a://h/c"))
         self.assertEqual(
-            params.public_mirrors, ("ftp://own.org/gentoo", "http://eee.com/mir")
+            params.public_mirrors, ("ftp://own.borg/gentoo", "http://eee.example/mir")
         )
 
     @patch("portage.package.ebuild.fetch._hash_filter")
@@ -762,14 +764,21 @@ class FilesFetcherTestCase(unittest.TestCase):
 
     @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
     def test__init_file_to_uris_mappings(self, play_out_file_to_uris_mappings):
-        """Testing that the _init_file_to_uris_mappings method is the
-        way to add the
+        """Testing that the ``_init_file_to_uris_mappings`` method adds
+        the
 
         - filedict
         - primaryuri_dict, and
         - thirdpartymirror_uris
 
         mappings to the FilesFetcher instance.
+        This is done by
+        1. mocking the method (``_lay_out_file_to_uris_mappings``)
+          that in normal circumstances calls the method under test
+          (``_init_file_to_uris_mappings``),
+        2. creating an instance of ``FilesFetcher``, and finally
+        3. calling explicitly ``_init_file_to_uris_mappings`` to see
+          if the expected mappings are there.
         """
         fetcher = FilesFetcher({"a": "b"}, Mock())
         with self.assertRaises(AttributeError):
@@ -782,6 +791,242 @@ class FilesFetcherTestCase(unittest.TestCase):
         self.assertEqual(fetcher.filedict, OrderedDict())
         self.assertEqual(fetcher.primaryuri_dict, {})
         self.assertEqual(fetcher.thirdpartymirror_uris, {})
+
+
+@dataclass
+class FakeParams:
+    """To test ``_ensure_in_filedict_with_generic_mirrors``, only
+    a restricted subset of parameters are needed. It is easier to
+    custimoze them with a simple class like this one.
+    """
+
+    fsmirrors: tuple[str] = ("/some/path", "/b/c/z", "/var/my/stuff")
+    local_mirrors: tuple[str] = ("otherthing:/what/not", "a://h/c")
+    public_mirrors: tuple[str] = ("ftp://own.borg/gentoo", "https://mock.example/mir")
+    restrict_fetch: bool = False
+    restrict_mirror: bool = False
+    settings: dict[str, str] = field(default_factory=lambda: {"ONE": "1"})
+    mirror_cache: Optional[str] = None
+
+
+@patch("portage.package.ebuild.fetch.partial")
+@patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+class FilesFetcherEnsureInFiledictWithGenericMirrors(unittest.TestCase):
+    """Due to the complexity of the method under test, namely
+    ``_ensure_in_filedict_with_generic_mirrors``, I write a
+    class to put its tests so that mocking, and setups can be
+    confined to the class.
+
+        .. note::
+
+           On patching ``partial``.
+           Since succesive calls to ``partial``, even with the same
+           arguments, produce callables that are not *equal* (i.e.
+           ``f1 != f2`` in Python code), I found that the easiest way
+           to compare the items in ``filedict`` with the expected values
+           is by mocking the ``partial`` function. That has been done in
+           all the tests within this class that compare items in the
+           ``filedict`` mapping.
+    """
+
+    def setUp(self):
+        self.afile = DistfileName("a")
+
+    def test_idempotence(self, play_out_file_to_uris_mappings, mpartial):
+        """If the item is already in the ``filedict`` mapping, nothing
+        new happens after the method: i.e. the method is idempotent.
+        """
+        fetcher = FilesFetcher({self.afile: "b"}, FakeParams())
+        fetcher._init_file_to_uris_mappings()
+        # we have this file already:
+        fetcher.filedict[self.afile] = ["b-uri"]
+        # Now, since it is there, it won't be added, even if we try it, and it
+        # does not matter if ``override_mirror`` is False:
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=False
+        )
+        self.assertEqual(fetcher.filedict, {self.afile: ["b-uri"]})
+        # or if it is True:
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=True
+        )
+        self.assertEqual(fetcher.filedict, {self.afile: ["b-uri"]})
+
+    def test_only_local_mirrors(self, play_out_file_to_uris_mappings, mpartial):
+        """This test assumes that the filedict attribute of the fetcher only
+        contains local mirrors when the conditions for that are met.
+        There are three conditions. The three are arranged in sequence and
+        the method tested after each change.
+        See ``_ensure_in_filedict_with_generic_mirrors``'s docstring.
+        """
+        params = FakeParams(
+            restrict_fetch=True,
+            restrict_mirror=True,
+            mirror_cache="/var/tmp/some.cache",
+        )
+        expected = OrderedDict(
+            {
+                self.afile: [
+                    mpartial(
+                        get_mirror_url,
+                        l,
+                        self.afile,
+                        params.settings,
+                        params.mirror_cache,
+                    )
+                    for l in params.local_mirrors
+                ]
+            }
+        )
+        fetcher = FilesFetcher({self.afile: "b"}, params)
+        # Need this because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+
+        # First case:
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=False
+        )
+        self.assertEqual(fetcher.filedict, expected)
+        del fetcher.filedict[self.afile]
+
+        # Second case:
+        params.restrict_mirror = False
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=False
+        )
+        self.assertEqual(fetcher.filedict, expected)
+        del fetcher.filedict[self.afile]
+
+        # Third case:
+        params.restrict_fetch = False
+        params.restrict_mirror = True
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=False
+        )
+        self.assertEqual(fetcher.filedict, expected)
+
+    def test_local_and_public_mirrors(self, play_out_file_to_uris_mappings, mpartial):
+        """In general, the filedict attribute of the fetcher will
+        contain public mirrors and can contain local mirrors if they are
+        defined too.
+        This test checks that this happens under the five conditions it
+        could happen.
+        See ``_ensure_in_filedict_with_generic_mirrors``'s docstring for
+        details.
+        """
+        params = FakeParams(
+            restrict_fetch=True,
+            restrict_mirror=True,
+            mirror_cache="/var/tmp/some.cache",
+        )
+        expected = OrderedDict(
+            {
+                self.afile: [
+                    mpartial(
+                        get_mirror_url,
+                        l,
+                        self.afile,
+                        params.settings,
+                        params.mirror_cache,
+                    )
+                    for l in (params.local_mirrors + params.public_mirrors)
+                ]
+            }
+        )
+        fetcher = FilesFetcher({self.afile: "b"}, params)
+        # Need this because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+
+        # First case:
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=True
+        )
+        self.assertEqual(fetcher.filedict, expected)
+        del fetcher.filedict[self.afile]
+
+        # Second case:
+        params.restrict_mirror = False
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=True
+        )
+        self.assertEqual(fetcher.filedict, expected)
+        del fetcher.filedict[self.afile]
+
+        # Third case:
+        params.restrict_fetch = False
+        params.restrict_mirror = True
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=True
+        )
+        self.assertEqual(fetcher.filedict, expected)
+        del fetcher.filedict[self.afile]
+
+        # Fourth case:
+        params.restrict_fetch = False
+        params.restrict_mirror = False
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=True
+        )
+        self.assertEqual(fetcher.filedict, expected)
+        del fetcher.filedict[self.afile]
+
+        # Fifth case:
+        params.restrict_fetch = False
+        params.restrict_mirror = False
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=False
+        )
+        self.assertEqual(fetcher.filedict, expected)
+
+    def test_local_mirrors_not_added_if_none_are_defined(self, _, mpartial):
+        params = FakeParams(local_mirrors=())
+        expected = OrderedDict(
+            {
+                self.afile: [
+                    mpartial(
+                        get_mirror_url,
+                        l,
+                        self.afile,
+                        params.settings,
+                        params.mirror_cache,
+                    )
+                    for l in params.public_mirrors
+                ]
+            }
+        )
+        fetcher = FilesFetcher({self.afile: "b"}, params)
+        # Need this because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=True
+        )
+        self.assertEqual(fetcher.filedict, expected)
+
+    def test_global_mirrors_not_added_if_none_are_defined(self, _, mpartial):
+        params = FakeParams(public_mirrors=())
+        expected = OrderedDict(
+            {
+                self.afile: [
+                    mpartial(
+                        get_mirror_url,
+                        l,
+                        self.afile,
+                        params.settings,
+                        params.mirror_cache,
+                    )
+                    for l in params.local_mirrors
+                ]
+            }
+        )
+        fetcher = FilesFetcher({self.afile: "b"}, params)
+        # Need this because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+
+        fetcher._ensure_in_filedict_with_generic_mirrors(
+            self.afile, override_mirror=True
+        )
+        self.assertEqual(fetcher.filedict, expected)
 
 
 @patch("portage.package.ebuild.fetch.FilesFetcher")
