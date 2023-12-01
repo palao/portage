@@ -75,8 +75,7 @@ class FetchExitStatusTestCase(unittest.TestCase):
         self.assertEqual(FetchExitStatus.ERROR, 0)
 
 
-@patch("portage.package.ebuild.fetch.check_config_instance")
-class FilesFetcherParametersTestCase(unittest.TestCase):
+class MakeInstanceMixIn:
     def make_instance(self, **kwords):
         """Auxiliary method. It takes arbitrary keyword arguments for
         simplicity, but it is expected that only arguments allowed in the
@@ -96,6 +95,9 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
         kwargs.update(kwords)
         return FilesFetcherParameters(**kwargs)
 
+
+@patch("portage.package.ebuild.fetch.check_config_instance")
+class FilesFetcherParametersTestCase(MakeInstanceMixIn, unittest.TestCase):
     def test_instance_has_expected_attributes(self, pcheck_config_instance):
         fake_digests = {"green": {"a/b": "25"}}
         fake_settings = FakePortageConfig()
@@ -399,7 +401,7 @@ class FilesFetcherParametersTestCase(unittest.TestCase):
     @patch("portage.package.ebuild.fetch.grabdict")
     def test_custommirrors(self, pgrabdict, pcheck_config_instance):
         """In this test we consider ``grabdict`` as a black box: it is
-        assumed to be *the* way to perform the opearion it does and
+        assumed to be *the* way to perform the operation it does and
         we just test here that:
 
         1. it is called as expected, and
@@ -813,8 +815,8 @@ class FakeParams:
 @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
 class FilesFetcherEnsureInFiledictWithGenericMirrors(unittest.TestCase):
     """Due to the complexity of the method under test, namely
-    ``_ensure_in_filedict_with_generic_mirrors``, I write a
-    class to put its tests so that mocking, and setups can be
+    ``_ensure_in_filedict_with_generic_mirrors``, I write its
+    tests in a dedicated class so that mocking, and setups can be
     confined to the class.
 
         .. note::
@@ -1027,6 +1029,87 @@ class FilesFetcherEnsureInFiledictWithGenericMirrors(unittest.TestCase):
             self.afile, override_mirror=True
         )
         self.assertEqual(fetcher.filedict, expected)
+
+
+@patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+@patch("portage.package.ebuild.fetch.check_config_instance")
+class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
+    """Due to the complexity of the method under test, namely
+    ``_add_specific_mirrors``, I write its tests in a dedicated
+    class so that mocking, and setups can be more specific.
+    """
+
+    def setUp(self):
+        self.afile = DistfileName("a.tar")
+        self.uris = (
+            "mirror://<mirrorname>/<path>",
+            "mirror://<mirrorname2>/<path2>/",
+            "http://<mirrorname3/<path3>",
+        )
+
+    def test_nothing_happens_if_uri_is_None(self, _, play_out_file_to_uris_mappings):
+        params = FakeParams()
+        fetcher = FilesFetcher({self.afile: (None,)}, params)
+        # Need this because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+
+        fetcher._add_specific_mirrors(self.afile, None)
+
+        self.assertEqual(fetcher.filedict, OrderedDict())
+        self.assertEqual(fetcher.primaryuri_dict, {})
+        self.assertEqual(fetcher.thirdpartymirror_uris, {})
+
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcherParameters.custommirrors",
+        new_callable=PropertyMock,
+    )
+    def test_custom_mirror_uri(
+        self, mcustom_mirrors, _, play_out_file_to_uris_mappings
+    ):
+        mysettings = FakePortageConfig(GENTOO_MIRRORS="")
+        mcustom_mirrors.return_value = {
+            "..c1m..": ["http://.some.", "other:/.what./"],
+            "..cus2..": ["https://.i.org./", "ftp://.n.net."],
+        }
+        params = self.make_instance(settings=mysettings)
+        fetcher = FilesFetcher({self.afile: ("",)}, params)
+        # Need the next two because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+        fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
+
+        fetcher._add_specific_mirrors(self.afile, "mirror://..c1m../a/jj.tarr")
+
+        self.assertEqual(
+            fetcher.filedict,
+            OrderedDict(
+                {self.afile: ["http://.some./a/jj.tarr", "other:/.what./a/jj.tarr"]}
+            ),
+        )
+        self.assertEqual(fetcher.primaryuri_dict, {})
+        self.assertEqual(fetcher.thirdpartymirror_uris, {})
+
+    def test_thirdparty_mirror_uri(self, _, play_out_file_to_uris_mappings):
+        self.fail("write me!")
+
+    def test_unknown_mirror_uri(self, _, play_out_file_to_uris_mappings):
+        self.fail("write me!")
+
+    def test_invalid_mirror_definition(self, _, play_out_file_to_uris_mappings):
+        self.fail("write me!")
+
+    def test_primary_uri_with_restrictions_not_added(
+        self, _, play_out_file_to_uris_mappings
+    ):
+        # test here that if uri = "http://..." and there are fetch restrictions,
+        # it is NOT added to primaryuris
+        self.fail("write me!")
+
+    def test_primary_uri_without_restrictions_added(
+        self, _, play_out_file_to_uris_mappings
+    ):
+        # test here that if uri = "http://..." and there are NO fetch restrictions,
+        # it is added to primaryuris
+        self.fail("write me!")
 
 
 @patch("portage.package.ebuild.fetch.FilesFetcher")

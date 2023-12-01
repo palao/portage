@@ -2600,6 +2600,20 @@ class FilesFetcher:
                     )
                 )
 
+    def _add_specific_mirrors(self, distfile: DistfileName, uri: Optional[str]) -> None:
+        if uri is None:
+            return
+        if uri[:9] == "mirror://":
+            eidx = uri.find("/", 9)
+            if eidx != -1:
+                mirrorname = uri[9:eidx]
+                path = uri[eidx + 1 :]
+
+                # Try user-defined mirrors first
+                if mirrorname in self.params.custommirrors:
+                    for cmirr in self.params.custommirrors[mirrorname]:
+                        self.filedict[distfile].append(cmirr.rstrip("/") + "/" + path)
+
     def _order_primaryuri_dict_values(self) -> None:
         """Order _primaryuri_dict values to match that in SRC_URI.
         This method assumes that the instance already has an attribute
