@@ -77,7 +77,6 @@ from portage.util import (
     writemsg,
     writemsg_level,
     writemsg_stdout,
-    stack_dictlist,
 )
 from portage.process import spawn
 from portage.package.ebuild._config.features_set import features_set
@@ -2305,7 +2304,7 @@ class FilesFetcherParameters:
         return value
 
     @property
-    def thirdpartymirrors(self) -> stack_dictlist:
+    def thirdpartymirrors(self) -> dict[str, list[str]]:
         return self.settings.thirdpartymirrors()
 
     @property

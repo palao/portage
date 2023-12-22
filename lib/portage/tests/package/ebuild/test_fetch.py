@@ -28,7 +28,6 @@ from portage.package.ebuild.fetch import (
 )
 from portage.exception import PortageException
 from portage.localization import _
-from portage.util import stack_dictlist
 from portage.const import CUSTOM_MIRRORS_FILE
 from portage.output import colorize
 import portage.data
@@ -43,7 +42,7 @@ class FakePortageConfig:
         if not features:
             features = set()
         self._features = features
-        self._thirdpartymirrors = stack_dictlist([], incrementals=True)
+        self._thirdpartymirrors = {}
         # The validators read DISTDIR, a default value avoid crashes:
         self.dict = {"DISTDIR": ""}
         self.dict.update(kwargs)
