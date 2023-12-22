@@ -2613,6 +2613,16 @@ class FilesFetcher:
                     for cmirr in self.params.custommirrors[mirrorname]:
                         self.filedict[distfile].append(cmirr.rstrip("/") + "/" + path)
 
+                # now try the official mirrors
+                if mirrorname in self.params.thirdpartymirrors:
+                    uris = [
+                        locmirr.rstrip("/") + "/" + path
+                        for locmirr in self.params.thirdpartymirrors[mirrorname]
+                    ]
+                    random.shuffle(uris)
+                    self.filedict[distfile].extend(uris)
+                    self.thirdpartymirror_uris.setdefault(distfile, []).extend(uris)
+
     def _order_primaryuri_dict_values(self) -> None:
         """Order _primaryuri_dict values to match that in SRC_URI.
         This method assumes that the instance already has an attribute

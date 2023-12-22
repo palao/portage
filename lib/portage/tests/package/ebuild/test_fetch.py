@@ -1087,8 +1087,82 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         self.assertEqual(fetcher.primaryuri_dict, {})
         self.assertEqual(fetcher.thirdpartymirror_uris, {})
 
-    def test_thirdparty_mirror_uri(self, _, play_out_file_to_uris_mappings):
-        self.fail("write me!")
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcherParameters.custommirrors",
+        new_callable=PropertyMock,
+    )
+    def test_thirdparty_mirror_uri(
+        self, mcustom_mirrors, _, play_out_file_to_uris_mappings
+    ):
+        """In this test, it is checked that We deliberately don't test the random order of uris coming from
+        third party mirrors. This test leaves it as an implementation detail.
+        """
+        mysettings = FakePortageConfig(GENTOO_MIRRORS="")
+        thirpartymirrors_map = {
+            "..tp1..": [
+                "ftp://..tp1../d/",
+                "http://..tp1../gentoo/mirror/",
+                "https://..tp1bis../another",
+            ],
+            "..tp2..": ["ftp://..tp2../xtr/", "http://..tp2../gentoo"],
+        }
+        mysettings._thirdpartymirrors = thirpartymirrors_map
+        params = self.make_instance(settings=mysettings)
+        fetcher = FilesFetcher({self.afile: ("",)}, params)
+        # Need the next two because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+        fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
+
+        # Next we exercise the function:
+        fetcher._add_specific_mirrors(self.afile, "mirror://..tp1../a/jj.tarr")
+
+        self.assertEqual(
+            len(fetcher.filedict[self.afile]), len(thirpartymirrors_map["..tp1.."])
+        )
+        self.assertEqual(
+            len(fetcher.thirdpartymirror_uris[self.afile]),
+            len(thirpartymirrors_map["..tp1.."]),
+        )
+        self.assertIn("ftp://..tp1../d/a/jj.tarr", fetcher.filedict[self.afile])
+        self.assertIn(
+            "ftp://..tp1../d/a/jj.tarr", fetcher.thirdpartymirror_uris[self.afile]
+        )
+        self.assertIn(
+            "http://..tp1../gentoo/mirror/a/jj.tarr", fetcher.filedict[self.afile]
+        )
+        self.assertIn(
+            "http://..tp1../gentoo/mirror/a/jj.tarr",
+            fetcher.thirdpartymirror_uris[self.afile],
+        )
+        self.assertIn(
+            "https://..tp1bis../another/a/jj.tarr", fetcher.filedict[self.afile]
+        )
+        self.assertIn(
+            "https://..tp1bis../another/a/jj.tarr",
+            fetcher.thirdpartymirror_uris[self.afile],
+        )
+
+        #  We exercise the function under test once more, to check that if a new
+        # mirror uri is processed, the relevant uris are added to filedict and
+        # thirdpartymirrors, but nothing is overwritten:
+        fetcher._add_specific_mirrors(self.afile, "mirror://..tp2../a/jj.tarr")
+
+        self.assertEqual(
+            len(fetcher.filedict[self.afile]),
+            len(thirpartymirrors_map["..tp1.."]) + len(thirpartymirrors_map["..tp2.."]),
+        )
+        self.assertEqual(
+            len(fetcher.thirdpartymirror_uris[self.afile]),
+            len(thirpartymirrors_map["..tp1.."]) + len(thirpartymirrors_map["..tp2.."]),
+        )
+        self.assertIn("ftp://..tp2../xtr/a/jj.tarr", fetcher.filedict[self.afile])
+        self.assertIn(
+            "ftp://..tp2../xtr/a/jj.tarr", fetcher.thirdpartymirror_uris[self.afile]
+        )
+        self.assertIn("http://..tp2../gentoo/a/jj.tarr", fetcher.filedict[self.afile])
+        self.assertIn(
+            "http://..tp2../gentoo/a/jj.tarr", fetcher.thirdpartymirror_uris[self.afile]
+        )
 
     def test_unknown_mirror_uri(self, _, play_out_file_to_uris_mappings):
         self.fail("write me!")
