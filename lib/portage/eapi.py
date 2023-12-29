@@ -6,6 +6,7 @@ from functools import lru_cache
 from typing import Optional
 
 from portage import eapi_is_supported
+import portage
 
 
 def eapi_has_iuse_defaults(eapi: str) -> bool:
@@ -209,7 +210,7 @@ class Eapi:
         return self._eapi_val <= other._eapi_val
 
 
-@lru_cache(32)
+@lru_cache(portage.CACHE_SIZE)  # 32)
 def _get_eapi_attrs(eapi_str: Optional[str]) -> _eapi_attrs:
     """
     When eapi is None then validation is not as strict, since we want the

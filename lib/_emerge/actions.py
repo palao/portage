@@ -40,7 +40,7 @@ from portage.dbapi.dep_expand import dep_expand
 from portage.dbapi._expand_new_virt import expand_new_virt
 from portage.dbapi.IndexedPortdb import IndexedPortdb
 from portage.dbapi.IndexedVardb import IndexedVardb
-from portage.dep import Atom, _repo_separator, _slot_separator
+from portage.dep import Atom, _repo_separator, _slot_separator, _use_reduce_cached
 from portage.exception import (
     InvalidAtom,
     InvalidData,
@@ -1693,6 +1693,7 @@ def _calc_depclean(settings, trees, ldpath_mtimes, myopts, action, args_set, spi
         # we aren't successfully depcleaning. Return failure unless
         # we're pretending.
         return _depclean_result(1, [], False, required_pkgs_total, resolver)
+    print(_use_reduce_cached.cache_info())
     return _depclean_result(0, [], False, required_pkgs_total, resolver)
 
 
@@ -4020,5 +4021,5 @@ def run_action(emerge_config):
             emerge_config.target_config.mtimedb,
             retval,
         )
-
+        print(_use_reduce_cached.cache_info())
         return retval

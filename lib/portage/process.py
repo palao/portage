@@ -253,7 +253,7 @@ class EnvStats:
 
 
 def calc_env_stats(env) -> EnvStats:
-    @lru_cache(1024)
+    @lru_cache(portage.CACHE_SIZE)  # 1024)
     def encoded_length(s):
         return len(os.fsencode(s))
 

@@ -304,3 +304,6 @@ RETURNCODE_POSTINST_FAILURE = 5
 # between branches.
 _DEPCLEAN_LIB_CHECK_DEFAULT = True
 _ENABLE_SET_CONFIG = True
+
+# For the tests (DPalao, 29dc2023):
+CACHE_SIZE = 131072

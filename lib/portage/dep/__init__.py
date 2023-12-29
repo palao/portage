@@ -476,7 +476,7 @@ def paren_enclose(mylist, unevaluated_atom=False, opconvert=False):
     return " ".join(mystrparts)
 
 
-@lru_cache(1024)
+@lru_cache(portage.CACHE_SIZE)  # 65536)#4096)#2048)#1024)#32768)#1024)
 def _use_reduce_cached(
     depstr,
     uselist,

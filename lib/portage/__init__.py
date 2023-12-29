@@ -163,6 +163,7 @@ try:
         MISC_SH_BINARY,
         REPO_NAME_LOC,
         REPO_NAME_FILE,
+        CACHE_SIZE,  # For the tests (DPalao, 29dic2023)
     )
 
 except ImportError as e:

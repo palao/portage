@@ -691,7 +691,7 @@ class depgraph:
         # Set up a per-instance memoization cache for the
         # _slot_operator_check_reverse_dependencies() method:
         self._slot_operator_check_reverse_dependencies = functools.lru_cache(
-            maxsize=1000
+            maxsize=portage.CACHE_SIZE  # 1000
         )(self._slot_operator_check_reverse_dependencies)
 
     def _index_binpkgs(self):

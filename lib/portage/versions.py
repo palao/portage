@@ -117,7 +117,7 @@ def ververify(myver: str, silent: int = 1) -> bool:
     return False
 
 
-@lru_cache(1024)
+@lru_cache(portage.CACHE_SIZE)  # 1024)
 def vercmp(ver1: str, ver2: str, silent: int = 1) -> Optional[int]:
     """
     Compare two versions
@@ -319,7 +319,7 @@ _cat_re = re.compile(f"^{_cat}$", re.UNICODE)
 _missing_cat = "null"
 
 
-@lru_cache(10240)
+@lru_cache(portage.CACHE_SIZE)  # 10240)
 def catpkgsplit(
     mydata: Union[str, "_pkg_str"],
     silent: int = 1,
