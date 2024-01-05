@@ -2540,7 +2540,7 @@ class FilesFetcher:
         and some global options, ensures that the file is in the collection
         of files to be downloaded with the proper URLs.
 
-        There are three conditions for a distfile to only local mirrors:
+        There are three conditions for a distfile to only have local mirrors:
 
         1. ``restrict_fetch = True``,
           ``restrict_mirror = True``, and
@@ -2622,6 +2622,14 @@ class FilesFetcher:
                     random.shuffle(uris)
                     self.filedict[distfile].extend(uris)
                     self.thirdpartymirror_uris.setdefault(distfile, []).extend(uris)
+                if (
+                    mirrorname not in self.params.custommirrors
+                    and mirrorname not in self.params.thirdpartymirrors
+                ):
+                    writemsg(_(f"!!! No known mirror by the name: {mirrorname}\n"))
+            else:
+                writemsg(_("Invalid mirror definition in SRC_URI:\n"), noiselevel=-1)
+                writemsg(f"  {uri}\n", noiselevel=-1)
 
     def _order_primaryuri_dict_values(self) -> None:
         """Order _primaryuri_dict values to match that in SRC_URI.

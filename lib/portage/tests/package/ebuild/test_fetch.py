@@ -27,7 +27,7 @@ from portage.package.ebuild.fetch import (
     get_mirror_url,
 )
 from portage.exception import PortageException
-from portage.localization import _
+from portage.localization import _ as _localize
 from portage.const import CUSTOM_MIRRORS_FILE
 from portage.output import colorize
 import portage.data
@@ -44,7 +44,7 @@ class FakePortageConfig:
         self._features = features
         self._thirdpartymirrors = {}
         # The validators read DISTDIR, a default value avoid crashes:
-        self.dict = {"DISTDIR": ""}
+        self.dict = {"DISTDIR": "", "PORTAGE_CONFIGROOT": "/"}
         self.dict.update(kwargs)
 
     @property
@@ -145,7 +145,7 @@ class FilesFetcherParametersTestCase(MakeInstanceMixIn, unittest.TestCase):
             self.make_instance(digests={"green": {"a/b": "25"}}, force=True)
         self.assertEqual(
             str(cm.exception),
-            _("fetch: force=True is not allowed when digests are provided"),
+            _localize("fetch: force=True is not allowed when digests are provided"),
         )
 
     def test_only_accepts_keyword_args(self, pcheck_config_instance):
@@ -258,14 +258,14 @@ class FilesFetcherParametersTestCase(MakeInstanceMixIn, unittest.TestCase):
         pwritemsg.assert_has_calls(
             [
                 call(
-                    _(
+                    _localize(
                         "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
                         " contains non-integer value: 'none'\n"
                     ),
                     noiselevel=-1,
                 ),
                 call(
-                    _(
+                    _localize(
                         "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
                         f"default value: {_DEFAULT_CHECKSUM_FAILURES_MAX_TRIES}\n"
                     ),
@@ -285,14 +285,14 @@ class FilesFetcherParametersTestCase(MakeInstanceMixIn, unittest.TestCase):
         pwritemsg.assert_has_calls(
             [
                 call(
-                    _(
+                    _localize(
                         "!!! Variable PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS"
                         " contains value less than 1: '-2'\n"
                     ),
                     noiselevel=-1,
                 ),
                 call(
-                    _(
+                    _localize(
                         "!!! Using PORTAGE_FETCH_CHECKSUM_TRY_MIRRORS "
                         f"default value: {_DEFAULT_CHECKSUM_FAILURES_MAX_TRIES}\n"
                     ),
@@ -348,14 +348,14 @@ class FilesFetcherParametersTestCase(MakeInstanceMixIn, unittest.TestCase):
                 pwritemsg.assert_has_calls(
                     [
                         call(
-                            _(
+                            _localize(
                                 "!!! Variable PORTAGE_FETCH_RESUME_MIN_SIZE"
                                 f" contains an unrecognized format: '{input_value}'\n"
                             ),
                             noiselevel=-1,
                         ),
                         call(
-                            _(
+                            _localize(
                                 "!!! Using PORTAGE_FETCH_RESUME_MIN_SIZE "
                                 f"default value: {_DEFAULT_FETCH_RESUME_SIZE}\n"
                             ),
@@ -456,7 +456,7 @@ class FilesFetcherParametersTestCase(MakeInstanceMixIn, unittest.TestCase):
                 call(
                     colorize(
                         "BAD",
-                        _(
+                        _localize(
                             "!!! For fetching to a read-only filesystem, "
                             "locking should be turned off.\n"
                         ),
@@ -464,7 +464,7 @@ class FilesFetcherParametersTestCase(MakeInstanceMixIn, unittest.TestCase):
                     noiselevel=-1,
                 ),
                 call(
-                    _(
+                    _localize(
                         "!!! This can be done by adding -distlocks to "
                         "FEATURES in /etc/portage/make.conf\n"
                     ),
@@ -1030,6 +1030,7 @@ class FilesFetcherEnsureInFiledictWithGenericMirrors(unittest.TestCase):
         self.assertEqual(fetcher.filedict, expected)
 
 
+@patch("portage.package.ebuild.fetch.writemsg")
 @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
 @patch("portage.package.ebuild.fetch.check_config_instance")
 class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
@@ -1045,10 +1046,25 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
             "mirror://<mirrorname2>/<path2>/",
             "http://<mirrorname3/<path3>",
         )
+        self.custom_mirrors = {
+            "..c1m..": ["http://.some.", "other:/.what./"],
+            "..cus2..": ["https://.i.org./", "ftp://.n.net."],
+        }
+        self.thirdparty_mirrors = {
+            "..tp1..": [
+                "ftp://..tp1../d/",
+                "http://..tp1../gentoo/mirror/",
+                "https://..tp1bis../another",
+            ],
+            "..tp2..": ["ftp://..tp2../xtr/", "http://..tp2../gentoo"],
+        }
+        self.simple_params = FakeParams()
+        self.settings = FakePortageConfig(GENTOO_MIRRORS="")
 
-    def test_nothing_happens_if_uri_is_None(self, _, play_out_file_to_uris_mappings):
-        params = FakeParams()
-        fetcher = FilesFetcher({self.afile: (None,)}, params)
+    def test_nothing_happens_if_uri_is_None(
+        self, _, play_out_file_to_uris_mappings, __
+    ):
+        fetcher = FilesFetcher({self.afile: (None,)}, self.simple_params)
         # Need this because I'm mocking _lay_out_file_to_uris_mappings:
         fetcher._init_file_to_uris_mappings()
 
@@ -1063,14 +1079,10 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         new_callable=PropertyMock,
     )
     def test_custom_mirror_uri(
-        self, mcustom_mirrors, _, play_out_file_to_uris_mappings
+        self, mcustom_mirrors, _, play_out_file_to_uris_mappings, __
     ):
-        mysettings = FakePortageConfig(GENTOO_MIRRORS="")
-        mcustom_mirrors.return_value = {
-            "..c1m..": ["http://.some.", "other:/.what./"],
-            "..cus2..": ["https://.i.org./", "ftp://.n.net."],
-        }
-        params = self.make_instance(settings=mysettings)
+        mcustom_mirrors.return_value = self.custom_mirrors
+        params = self.make_instance(settings=self.settings)
         fetcher = FilesFetcher({self.afile: ("",)}, params)
         # Need the next two because I'm mocking _lay_out_file_to_uris_mappings:
         fetcher._init_file_to_uris_mappings()
@@ -1092,22 +1104,13 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         new_callable=PropertyMock,
     )
     def test_thirdparty_mirror_uri(
-        self, mcustom_mirrors, _, play_out_file_to_uris_mappings
+        self, mcustom_mirrors, _, play_out_file_to_uris_mappings, __
     ):
         """In this test, it is checked that We deliberately don't test the random order of uris coming from
         third party mirrors. This test leaves it as an implementation detail.
         """
-        mysettings = FakePortageConfig(GENTOO_MIRRORS="")
-        thirpartymirrors_map = {
-            "..tp1..": [
-                "ftp://..tp1../d/",
-                "http://..tp1../gentoo/mirror/",
-                "https://..tp1bis../another",
-            ],
-            "..tp2..": ["ftp://..tp2../xtr/", "http://..tp2../gentoo"],
-        }
-        mysettings._thirdpartymirrors = thirpartymirrors_map
-        params = self.make_instance(settings=mysettings)
+        self.settings._thirdpartymirrors = self.thirdparty_mirrors
+        params = self.make_instance(settings=self.settings)
         fetcher = FilesFetcher({self.afile: ("",)}, params)
         # Need the next two because I'm mocking _lay_out_file_to_uris_mappings:
         fetcher._init_file_to_uris_mappings()
@@ -1117,11 +1120,11 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         fetcher._add_specific_mirrors(self.afile, "mirror://..tp1../a/jj.tarr")
 
         self.assertEqual(
-            len(fetcher.filedict[self.afile]), len(thirpartymirrors_map["..tp1.."])
+            len(fetcher.filedict[self.afile]), len(self.thirdparty_mirrors["..tp1.."])
         )
         self.assertEqual(
             len(fetcher.thirdpartymirror_uris[self.afile]),
-            len(thirpartymirrors_map["..tp1.."]),
+            len(self.thirdparty_mirrors["..tp1.."]),
         )
         self.assertIn("ftp://..tp1../d/a/jj.tarr", fetcher.filedict[self.afile])
         self.assertIn(
@@ -1146,14 +1149,15 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         # mirror uri is processed, the relevant uris are added to filedict and
         # thirdpartymirrors, but nothing is overwritten:
         fetcher._add_specific_mirrors(self.afile, "mirror://..tp2../a/jj.tarr")
-
         self.assertEqual(
             len(fetcher.filedict[self.afile]),
-            len(thirpartymirrors_map["..tp1.."]) + len(thirpartymirrors_map["..tp2.."]),
+            len(self.thirdparty_mirrors["..tp1.."])
+            + len(self.thirdparty_mirrors["..tp2.."]),
         )
         self.assertEqual(
             len(fetcher.thirdpartymirror_uris[self.afile]),
-            len(thirpartymirrors_map["..tp1.."]) + len(thirpartymirrors_map["..tp2.."]),
+            len(self.thirdparty_mirrors["..tp1.."])
+            + len(self.thirdparty_mirrors["..tp2.."]),
         )
         self.assertIn("ftp://..tp2../xtr/a/jj.tarr", fetcher.filedict[self.afile])
         self.assertIn(
@@ -1164,21 +1168,59 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
             "http://..tp2../gentoo/a/jj.tarr", fetcher.thirdpartymirror_uris[self.afile]
         )
 
-    def test_unknown_mirror_uri(self, _, play_out_file_to_uris_mappings):
-        self.fail("write me!")
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcherParameters.custommirrors",
+        new_callable=PropertyMock,
+    )
+    def test_unknown_mirror_uri(
+        self, mcustom_mirrors, _, play_out_file_to_uris_mappings, mwritemsg
+    ):
+        self.settings._thirdpartymirrors = self.thirdparty_mirrors
+        mcustom_mirrors.return_value = self.custom_mirrors
+        params = self.make_instance(settings=self.settings)
+        fetcher = FilesFetcher({self.afile: ("",)}, params)
+        # Need the next two because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+        fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
 
-    def test_invalid_mirror_definition(self, _, play_out_file_to_uris_mappings):
-        self.fail("write me!")
+        # Next we exercise the function:
+        fetcher._add_specific_mirrors(self.afile, "mirror://..??../a/jj.tarr")
+
+        self.assertEqual(len(fetcher.filedict[self.afile]), 0)
+        self.assertNotIn(self.afile, fetcher.thirdpartymirror_uris)
+        mwritemsg.assert_called_once_with(
+            _localize("!!! No known mirror by the name: ..??..\n")
+        )
+
+    def test_invalid_mirror_definition(
+        self, _, play_out_file_to_uris_mappings, mwritemsg
+    ):
+        params = self.make_instance(settings=self.settings)
+        fetcher = FilesFetcher({self.afile: ("",)}, params)
+        # Need the next two because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+        fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
+
+        # Next we exercise the function:
+        fetcher._add_specific_mirrors(self.afile, "mirror://..??..")
+        mwritemsg.assert_has_calls(
+            [
+                call(
+                    _localize("Invalid mirror definition in SRC_URI:\n"), noiselevel=-1
+                ),
+                call(_localize(f"  mirror://..??..\n"), noiselevel=-1),
+            ]
+        )
 
     def test_primary_uri_with_restrictions_not_added(
-        self, _, play_out_file_to_uris_mappings
+        self, _, play_out_file_to_uris_mappings, __
     ):
         # test here that if uri = "http://..." and there are fetch restrictions,
         # it is NOT added to primaryuris
         self.fail("write me!")
 
     def test_primary_uri_without_restrictions_added(
-        self, _, play_out_file_to_uris_mappings
+        self, _, play_out_file_to_uris_mappings, __
     ):
         # test here that if uri = "http://..." and there are NO fetch restrictions,
         # it is added to primaryuris
