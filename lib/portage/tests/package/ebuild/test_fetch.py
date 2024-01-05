@@ -1068,7 +1068,7 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         # Need this because I'm mocking _lay_out_file_to_uris_mappings:
         fetcher._init_file_to_uris_mappings()
 
-        fetcher._add_specific_mirrors(self.afile, None)
+        fetcher._add_specific_mirrors(self.afile, None, override_fetch=False)
 
         self.assertEqual(fetcher.filedict, OrderedDict())
         self.assertEqual(fetcher.primaryuri_dict, {})
@@ -1088,7 +1088,9 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         fetcher._init_file_to_uris_mappings()
         fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
 
-        fetcher._add_specific_mirrors(self.afile, "mirror://..c1m../a/jj.tarr")
+        fetcher._add_specific_mirrors(
+            self.afile, "mirror://..c1m../a/jj.tarr", override_fetch=False
+        )
 
         self.assertEqual(
             fetcher.filedict,
@@ -1117,7 +1119,9 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
 
         # Next we exercise the function:
-        fetcher._add_specific_mirrors(self.afile, "mirror://..tp1../a/jj.tarr")
+        fetcher._add_specific_mirrors(
+            self.afile, "mirror://..tp1../a/jj.tarr", override_fetch=False
+        )
 
         self.assertEqual(
             len(fetcher.filedict[self.afile]), len(self.thirdparty_mirrors["..tp1.."])
@@ -1148,7 +1152,9 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         #  We exercise the function under test once more, to check that if a new
         # mirror uri is processed, the relevant uris are added to filedict and
         # thirdpartymirrors, but nothing is overwritten:
-        fetcher._add_specific_mirrors(self.afile, "mirror://..tp2../a/jj.tarr")
+        fetcher._add_specific_mirrors(
+            self.afile, "mirror://..tp2../a/jj.tarr", override_fetch=False
+        )
         self.assertEqual(
             len(fetcher.filedict[self.afile]),
             len(self.thirdparty_mirrors["..tp1.."])
@@ -1184,7 +1190,9 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
 
         # Next we exercise the function:
-        fetcher._add_specific_mirrors(self.afile, "mirror://..??../a/jj.tarr")
+        fetcher._add_specific_mirrors(
+            self.afile, "mirror://..??../a/jj.tarr", override_fetch=False
+        )
 
         self.assertEqual(len(fetcher.filedict[self.afile]), 0)
         self.assertNotIn(self.afile, fetcher.thirdpartymirror_uris)
@@ -1202,7 +1210,9 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
         fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
 
         # Next we exercise the function:
-        fetcher._add_specific_mirrors(self.afile, "mirror://..??..")
+        fetcher._add_specific_mirrors(
+            self.afile, "mirror://..??..", override_fetch=False
+        )
         mwritemsg.assert_has_calls(
             [
                 call(
@@ -1215,16 +1225,42 @@ class FilesFetcherAddSpecificMirrors(MakeInstanceMixIn, unittest.TestCase):
     def test_primary_uri_with_restrictions_not_added(
         self, _, play_out_file_to_uris_mappings, __
     ):
-        # test here that if uri = "http://..." and there are fetch restrictions,
-        # it is NOT added to primaryuris
-        self.fail("write me!")
+        # test here that if uri is not of mirror type, eg. uri = "http://..." and
+        # there are fetch restrictions, the uri is NOT added to primaryuris
+        params = self.make_instance(settings=self.settings)
+        self.settings.features.add("force-mirror")
+        fetcher = FilesFetcher({self.afile: ("",)}, params)
+        # Need the next two because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+        fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
+
+        # Next we exercise the function:
+        fetcher._add_specific_mirrors(self.afile, "ftp://..??..", override_fetch=True)
+        self.assertNotIn(self.afile, fetcher.primaryuri_dict)
+
+        self.settings.features.remove("force-mirror")
+        self.settings.dict["PORTAGE_RESTRICT"] = "fetch"
+        fetcher._add_specific_mirrors(self.afile, "ftp://..??..", override_fetch=False)
+        self.assertNotIn(self.afile, fetcher.primaryuri_dict)
 
     def test_primary_uri_without_restrictions_added(
         self, _, play_out_file_to_uris_mappings, __
     ):
-        # test here that if uri = "http://..." and there are NO fetch restrictions,
-        # it is added to primaryuris
-        self.fail("write me!")
+        # test here that if uri is not of mirror type, eg. uri = "http://..." and
+        # there are NO fetch restrictions, it is added to primaryuris
+        params = self.make_instance(settings=self.settings)
+        fetcher = FilesFetcher({self.afile: ("",)}, params)
+        # Need the next two because I'm mocking _lay_out_file_to_uris_mappings:
+        fetcher._init_file_to_uris_mappings()
+        fetcher._ensure_in_filedict_with_generic_mirrors(self.afile, False)
+
+        # Next we exercise the function:
+        fetcher._add_specific_mirrors(self.afile, "ftp://..??..", override_fetch=True)
+        self.assertEqual(fetcher.primaryuri_dict[self.afile], ["ftp://..??.."])
+        fetcher._add_specific_mirrors(self.afile, "http://..abf..", override_fetch=True)
+        self.assertEqual(
+            fetcher.primaryuri_dict[self.afile], ["ftp://..??..", "http://..abf.."]
+        )
 
 
 @patch("portage.package.ebuild.fetch.FilesFetcher")

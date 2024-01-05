@@ -2599,7 +2599,12 @@ class FilesFetcher:
                     )
                 )
 
-    def _add_specific_mirrors(self, distfile: DistfileName, uri: Optional[str]) -> None:
+    def _add_specific_mirrors(
+        self,
+        distfile: DistfileName,
+        uri: Optional[str],
+        override_fetch: bool,
+    ) -> None:
         if uri is None:
             return
         if uri[:9] == "mirror://":
@@ -2630,6 +2635,14 @@ class FilesFetcher:
             else:
                 writemsg(_("Invalid mirror definition in SRC_URI:\n"), noiselevel=-1)
                 writemsg(f"  {uri}\n", noiselevel=-1)
+        else:
+            if (
+                self.params.restrict_fetch and not override_fetch
+            ) or self.params.force_mirror:
+                return
+            else:
+                primaryuris = self.primaryuri_dict.setdefault(distfile, [])
+                primaryuris.append(uri)
 
     def _order_primaryuri_dict_values(self) -> None:
         """Order _primaryuri_dict values to match that in SRC_URI.
