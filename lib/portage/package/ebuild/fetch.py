@@ -2652,6 +2652,12 @@ class FilesFetcher:
         for uris in self._primaryuri_dict.values():
             uris.reverse()
 
+    def _add_thirdpartymirrors_to_primaryuri_dict(self) -> None:
+        # Prefer thirdpartymirrors over normal mirrors in cases when
+        # the file does not yet exist on the normal mirrors.
+        for distfile, uris in self.thirdpartymirror_uris.items():
+            self.primaryuri_dict.setdefault(distfile, []).extend(uris)
+
 
 def new_fetch(
     myuris,

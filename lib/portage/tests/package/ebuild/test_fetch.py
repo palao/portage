@@ -764,7 +764,7 @@ class FilesFetcherTestCase(unittest.TestCase):
         )
 
     @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
-    def test__init_file_to_uris_mappings(self, play_out_file_to_uris_mappings):
+    def test__init_file_to_uris_mappings(self, _):
         """Testing that the ``_init_file_to_uris_mappings`` method adds
         the
 
@@ -788,10 +788,36 @@ class FilesFetcherTestCase(unittest.TestCase):
             fetcher.primaryuri_dict
         with self.assertRaises(AttributeError):
             fetcher.thirdpartymirror_uris
+        # The mappings are initialized in _init_file_to_uris_mappings
+        # which is called by _lay_out_file_to_uris_mappings. Since this
+        # one is patched, I must initialize the mappings by hand for the
+        # test:
         fetcher._init_file_to_uris_mappings()
         self.assertEqual(fetcher.filedict, OrderedDict())
         self.assertEqual(fetcher.primaryuri_dict, {})
         self.assertEqual(fetcher.thirdpartymirror_uris, {})
+
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test_add_thirdpartymirrors_to_primaryuri_dict(self, _):
+        fetcher = FilesFetcher({"a": "b"}, Mock())
+        # The mappings are initialized in _init_file_to_uris_mappings
+        # which is called by _lay_out_file_to_uris_mappings. Since this
+        # one is patched, I must initialize the mappings by hand for the
+        # test:
+        fetcher._init_file_to_uris_mappings()
+        fetcher.primaryuri_dict = {
+            "a": ["h://.a./a"],
+            "b": ["g://.b./b"],
+        }
+        fetcher.thirdpartymirror_uris = {
+            "a": ["q://.A./a"],
+            "c": ["k://.c./c"],
+        }
+        fetcher._add_thirdpartymirrors_to_primaryuri_dict()
+        self.assertEqual(
+            fetcher.primaryuri_dict,
+            {"a": ["h://.a./a", "q://.A./a"], "b": ["g://.b./b"], "c": ["k://.c./c"]},
+        )
 
 
 @dataclass
