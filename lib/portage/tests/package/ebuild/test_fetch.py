@@ -64,6 +64,24 @@ class FakePortageConfig:
         return self._thirdpartymirrors
 
 
+@dataclass
+class FakeParams:
+    """To test some methods, like ``_ensure_in_filedict_with_generic_mirrors``
+    or ``_merge_primary_values_into_filedict``, only a restricted subset
+    of parameters are needed. It is easier to custimoze them with a simple
+    class like this one.
+    """
+
+    fsmirrors: tuple[str] = ("/some/path", "/b/c/z", "/var/my/stuff")
+    local_mirrors: tuple[str] = ("otherthing:/what/not", "a://h/c")
+    public_mirrors: tuple[str] = ("ftp://own.borg/gentoo", "https://mock.example/mir")
+    restrict: str = ""
+    restrict_fetch: bool = False
+    restrict_mirror: bool = False
+    settings: dict[str, str] = field(default_factory=lambda: {"ONE": "1"})
+    mirror_cache: Optional[str] = None
+
+
 class FetchExitStatusTestCase(unittest.TestCase):
     """The main purpose of testing ``FetchExitStatus`` is to ensure
     backwards compatibility in the values.
@@ -819,21 +837,37 @@ class FilesFetcherTestCase(unittest.TestCase):
             {"a": ["h://.a./a", "q://.A./a"], "b": ["g://.b./b"], "c": ["k://.c./c"]},
         )
 
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test_merge_primaryuri_values_into_filedict_without_restrictions(self, _):
+        fetcher = FilesFetcher({"a": "b"}, FakeParams())
+        # The mappings are initialized in _init_file_to_uris_mappings
+        # which is called by _lay_out_file_to_uris_mappings. Since this
+        # one is patched, I must initialize the mappings by hand for the
+        # test:
+        fetcher._init_file_to_uris_mappings()
+        fetcher.filedict = OrderedDict({"a": ["q://.A./a"], "c": ["k://.c./c"]})
+        fetcher.primaryuri_dict = {"a": ["h://.a./a"], "b": ["g://.b./b"]}
+        fetcher._merge_primaryuri_values_into_filedict()
+        self.assertEqual(
+            fetcher.filedict,
+            OrderedDict({"a": ["q://.A./a", "h://.a./a"], "c": ["k://.c./c"]}),
+        )
 
-@dataclass
-class FakeParams:
-    """To test ``_ensure_in_filedict_with_generic_mirrors``, only
-    a restricted subset of parameters are needed. It is easier to
-    custimoze them with a simple class like this one.
-    """
-
-    fsmirrors: tuple[str] = ("/some/path", "/b/c/z", "/var/my/stuff")
-    local_mirrors: tuple[str] = ("otherthing:/what/not", "a://h/c")
-    public_mirrors: tuple[str] = ("ftp://own.borg/gentoo", "https://mock.example/mir")
-    restrict_fetch: bool = False
-    restrict_mirror: bool = False
-    settings: dict[str, str] = field(default_factory=lambda: {"ONE": "1"})
-    mirror_cache: Optional[str] = None
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test_merge_primaryuri_values_into_filedict_with_primaryuri_restriction(self, _):
+        fetcher = FilesFetcher({"a": "b"}, FakeParams(restrict="primaryuri"))
+        # The mappings are initialized in _init_file_to_uris_mappings
+        # which is called by _lay_out_file_to_uris_mappings. Since this
+        # one is patched, I must initialize the mappings by hand for the
+        # test:
+        fetcher._init_file_to_uris_mappings()
+        fetcher.filedict = OrderedDict({"a": ["q://.A./a"], "c": ["k://.c./c"]})
+        fetcher.primaryuri_dict = {"a": ["h://.a./a"], "b": ["g://.b./b"]}
+        fetcher._merge_primaryuri_values_into_filedict()
+        self.assertEqual(
+            fetcher.filedict,
+            OrderedDict({"a": ["h://.a./a", "q://.A./a"], "c": ["k://.c./c"]}),
+        )
 
 
 @patch("portage.package.ebuild.fetch.partial")

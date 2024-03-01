@@ -2653,10 +2653,22 @@ class FilesFetcher:
             uris.reverse()
 
     def _add_thirdpartymirrors_to_primaryuri_dict(self) -> None:
-        # Prefer thirdpartymirrors over normal mirrors in cases when
-        # the file does not yet exist on the normal mirrors.
+        """Prefer thirdpartymirrors over normal mirrors in cases when
+        the file does not yet exist on the normal mirrors.
+        """
         for distfile, uris in self.thirdpartymirror_uris.items():
             self.primaryuri_dict.setdefault(distfile, []).extend(uris)
+
+    def _merge_primaryuri_values_into_filedict(self) -> None:
+        """Now merge primaryuri values into filedict (includes mirrors
+        explicitly referenced in SRC_URI).
+        """
+        if "primaryuri" in self.params.restrict:
+            for distfile, uris in self.filedict.items():
+                self.filedict[distfile] = self.primaryuri_dict.get(distfile, []) + uris
+        else:
+            for distfile in self.filedict:
+                self.filedict[distfile] += self.primaryuri_dict.get(distfile, [])
 
 
 def new_fetch(
