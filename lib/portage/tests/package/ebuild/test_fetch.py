@@ -869,6 +869,59 @@ class FilesFetcherTestCase(unittest.TestCase):
             OrderedDict({"a": ["h://.a./a", "q://.A./a"], "c": ["k://.c./c"]}),
         )
 
+    @patch("portage.package.ebuild.fetch.FilesFetcher._add_specific_mirrors")
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcher._ensure_in_filedict_with_generic_mirrors"
+    )
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcher.file_uri_tuples",
+        new_callable=PropertyMock,
+    )
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test_set_mirrors_considering_restrictions_lifts_restrictions_if_needed(
+        self,
+        _,
+        pfile_uri_tuples,
+        pensure_in_filedict_with_generic_mirrors,
+        padd_specific_mirrors,
+    ):
+        """Another strongly mocked test. The reason: the essential
+        functionality of the ``_set_mirrors_considering_restrictions``
+        method is to adjust the uris, lifting restrictions when necessary.
+        The remaining functionality is delegated to other methods, already
+        tested. Those methods are part of the internal interface of the
+        class, and mocking them out is OK in the context of this test.
+        """
+
+        def file_uri_tuples():
+            yield from (
+                (DistfileName("/a"), "http://.some.url."),
+                (DistfileName("/b"), "mirror+https://.another.url."),
+                (DistfileName("/c"), "fetch+ftp://.my.host."),
+                (DistfileName("/d"), "other+https://.yet.another."),
+            )
+
+        pfile_uri_tuples.side_effect = file_uri_tuples
+
+        fetcher = FilesFetcher({"a": "b"}, FakeParams(restrict="primaryuri"))
+        # The mappings are initialized in _init_file_to_uris_mappings
+        # which is called by _lay_out_file_to_uris_mappings. Since this
+        # one is patched, I must initialize the mappings by hand for the
+        # test:
+        fetcher._init_file_to_uris_mappings()
+        fetcher._set_mirrors_considering_restrictions()
+        pensure_in_filedict_with_generic_mirrors.assert_has_calls(
+            [call(DistfileName(name)) for name in ("/a", "/b", "/c", "/d")]
+        )
+        padd_specific_mirrors.assert_has_calls(
+            [
+                call(DistfileName("/a"), "http://.some.url."),
+                call(DistfileName("/b"), "https://.another.url."),
+                call(DistfileName("/c"), "ftp://.my.host."),
+                call(DistfileName("/d"), "other+https://.yet.another."),
+            ]
+        )
+
 
 @patch("portage.package.ebuild.fetch.partial")
 @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")

@@ -2518,6 +2518,22 @@ class FilesFetcher:
     def _lay_out_file_to_uris_mappings(self) -> None:
         ...
 
+    def _set_mirrors_considering_restrictions(self) -> None:
+        """In this method the automatic restrictions imposed by
+        ``RESTRICT="mirror"`` and ``RESTRICT="fetch"`` are removed, if
+        requested with a prefix in the URI ("mirror+" or "fetch+").
+        The URIs are expanded using local, public, custom and third party
+        mirrors. See:
+        https://devmanual.gentoo.org/ebuild-writing/variables/#lifting-restrictions
+        """
+        for distfile, uri in self.file_uri_tuples:
+            override_mirror = (uri or "").startswith("mirror+")
+            override_fetch = override_mirror or (uri or "").startswith("fetch+")
+            if override_fetch:
+                uri = uri.partition("+")[2]
+            self._ensure_in_filedict_with_generic_mirrors(distfile)
+            self._add_specific_mirrors(distfile, uri)
+
     def _init_file_to_uris_mappings(self) -> None:
         """Method that adds some mappings to the instance:
 
