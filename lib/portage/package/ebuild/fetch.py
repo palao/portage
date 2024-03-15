@@ -2515,6 +2515,13 @@ class FilesFetcher:
                     uri,
                 )
 
+    @property
+    def can_fetch(self) -> bool:
+        if self.params.listonly:
+            return False
+        else:
+            return True
+
     def _lay_out_file_to_uris_mappings(self) -> None:
         """This method arranges a mapping from files (``DistfileName``'s)
         to URIs considering the restrictions and the mirrors.
@@ -2538,8 +2545,8 @@ class FilesFetcher:
             override_fetch = override_mirror or (uri or "").startswith("fetch+")
             if override_fetch:
                 uri = uri.partition("+")[2]
-            self._ensure_in_filedict_with_generic_mirrors(distfile)
-            self._add_specific_mirrors(distfile, uri)
+            self._ensure_in_filedict_with_generic_mirrors(distfile, override_mirror)
+            self._add_specific_mirrors(distfile, uri, override_fetch)
 
     def _init_file_to_uris_mappings(self) -> None:
         """Method that adds some mappings to the instance:
@@ -2672,7 +2679,7 @@ class FilesFetcher:
         This method assumes that the instance already has an attribute
         called ``_primaryuri_dict`` which is a mapping: file -> list[uri]
         """
-        for uris in self._primaryuri_dict.values():
+        for uris in self.primaryuri_dict.values():
             uris.reverse()
 
     def _add_thirdpartymirrors_to_primaryuri_dict(self) -> None:

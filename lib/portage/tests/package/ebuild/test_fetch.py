@@ -80,6 +80,9 @@ class FakeParams:
     restrict_mirror: bool = False
     settings: dict[str, str] = field(default_factory=lambda: {"ONE": "1"})
     mirror_cache: Optional[str] = None
+    digests: dict[str, dict[str, str]] = field(default_factory=lambda: {})
+    force_mirror: bool = False
+    listonly: bool = False
 
 
 class FetchExitStatusTestCase(unittest.TestCase):
@@ -777,10 +780,10 @@ class FilesFetcherTestCase(unittest.TestCase):
     @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
     def test__order_primaryuri_dict_values(self, _):
         fetcher = FilesFetcher({"a": "b"}, Mock())
-        fetcher._primaryuri_dict = {"x": ["1", "2", "3"], "y": [".", "..."]}
+        fetcher.primaryuri_dict = {"x": ["1", "2", "3"], "y": [".", "..."]}
         fetcher._order_primaryuri_dict_values()
         self.assertEqual(
-            fetcher._primaryuri_dict, {"x": ["3", "2", "1"], "y": ["...", "."]}
+            fetcher.primaryuri_dict, {"x": ["3", "2", "1"], "y": ["...", "."]}
         )
 
     @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
@@ -913,14 +916,22 @@ class FilesFetcherTestCase(unittest.TestCase):
         fetcher._init_file_to_uris_mappings()
         fetcher._set_mirrors_considering_restrictions()
         pensure_in_filedict_with_generic_mirrors.assert_has_calls(
-            [call(DistfileName(name)) for name in ("/a", "/b", "/c", "/d")]
+            [
+                call(DistfileName(name), override)
+                for name, override in [
+                    ("/a", False),
+                    ("/b", True),
+                    ("/c", False),
+                    ("/d", False),
+                ]
+            ]
         )
         padd_specific_mirrors.assert_has_calls(
             [
-                call(DistfileName("/a"), "http://.some.url."),
-                call(DistfileName("/b"), "https://.another.url."),
-                call(DistfileName("/c"), "ftp://.my.host."),
-                call(DistfileName("/d"), "other+https://.yet.another."),
+                call(DistfileName("/a"), "http://.some.url.", False),
+                call(DistfileName("/b"), "https://.another.url.", True),
+                call(DistfileName("/c"), "ftp://.my.host.", True),
+                call(DistfileName("/d"), "other+https://.yet.another.", False),
             ]
         )
 
@@ -943,8 +954,8 @@ class FilesFetcherTestCase(unittest.TestCase):
         p_add_thirdpartymirrors_to_primaryuri_dict,
         p_merge_primaryuri_values_into_filedict,
     ):
-        """This is a mockist approach to test that the method under test
-        ie, ``_lay_out_file_to_uris_mappings`` performs the correct
+        """This is a mockist approach to testing that the method under test
+        ie, ``_lay_out_file_to_uris_mappings``, performs the correct
         sequence of calls, in the correct order.
         """
         fetcher = FilesFetcher({"a": "b"}, FakeParams())
@@ -979,6 +990,13 @@ class FilesFetcherTestCase(unittest.TestCase):
                 call._merge_primaryuri_values_into_filedict(),
             ]
         )
+
+    def test_can_fetch_attribute_depends_on_listonly(self):
+        params = FakeParams()
+        fetcher = FilesFetcher({"a": "b"}, params)
+        self.assertTrue(fetcher.can_fetch)
+        params.listonly = True
+        self.assertFalse(fetcher.can_fetch)
 
 
 @patch("portage.package.ebuild.fetch.partial")
