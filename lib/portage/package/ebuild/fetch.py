@@ -2516,7 +2516,14 @@ class FilesFetcher:
                 )
 
     def _lay_out_file_to_uris_mappings(self) -> None:
-        ...
+        """This method arranges a mapping from files (``DistfileName``'s)
+        to URIs considering the restrictions and the mirrors.
+        """
+        self._init_file_to_uris_mappings()
+        self._set_mirrors_considering_restrictions()
+        self._order_primaryuri_dict_values()
+        self._add_thirdpartymirrors_to_primaryuri_dict()
+        self._merge_primaryuri_values_into_filedict()
 
     def _set_mirrors_considering_restrictions(self) -> None:
         """In this method the automatic restrictions imposed by

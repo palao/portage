@@ -7,7 +7,7 @@
 """
 
 import unittest
-from unittest.mock import Mock, patch, call, PropertyMock
+from unittest.mock import Mock, patch, call, PropertyMock, MagicMock
 from typing import Optional
 from pathlib import Path
 from collections import OrderedDict
@@ -67,7 +67,7 @@ class FakePortageConfig:
 @dataclass
 class FakeParams:
     """To test some methods, like ``_ensure_in_filedict_with_generic_mirrors``
-    or ``_merge_primary_values_into_filedict``, only a restricted subset
+    or ``_merge_primaryuri_values_into_filedict``, only a restricted subset
     of parameters are needed. It is easier to custimoze them with a simple
     class like this one.
     """
@@ -684,14 +684,16 @@ class FilesFetcherTestCase(unittest.TestCase):
         with self.assertRaises(FetchingUnnecessary):
             FilesFetcher({}, Mock())
 
-    def test_instance_has_expected_attributes(self):
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test_instance_has_expected_attributes(self, _):
         fake_uris = {"a": {"cv": "e"}}
         fake_params = Mock()
         ff = FilesFetcher(uris=fake_uris, params=fake_params)
         self.assertEqual(ff.uris, fake_uris)
         self.assertEqual(ff.params, fake_params)
 
-    def test_file_uri_tuples(self):
+    @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
+    def test_file_uri_tuples(self, _):
         digests1 = {"BLAKE2": "a1b2c3", "SAH512": "dd7720", "size": 32}
         digests2 = {"BLAKE2": "91b3c3", "SAH512": "dd7720", "size": 324}
         digestsx = {"BLAKE2": "55de91b3c3ff2", "SAH512": "ae305ff987bc2", "size": 1440}
@@ -773,7 +775,7 @@ class FilesFetcherTestCase(unittest.TestCase):
     #     self.fail("write me!")
 
     @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
-    def test__order_primaryuri_dict_values(self, play_out_file_to_uris_mappings):
+    def test__order_primaryuri_dict_values(self, _):
         fetcher = FilesFetcher({"a": "b"}, Mock())
         fetcher._primaryuri_dict = {"x": ["1", "2", "3"], "y": [".", "..."]}
         fetcher._order_primaryuri_dict_values()
@@ -922,6 +924,62 @@ class FilesFetcherTestCase(unittest.TestCase):
             ]
         )
 
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcher._merge_primaryuri_values_into_filedict"
+    )
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcher._add_thirdpartymirrors_to_primaryuri_dict"
+    )
+    @patch("portage.package.ebuild.fetch.FilesFetcher._order_primaryuri_dict_values")
+    @patch(
+        "portage.package.ebuild.fetch.FilesFetcher._set_mirrors_considering_restrictions"
+    )
+    @patch("portage.package.ebuild.fetch.FilesFetcher._init_file_to_uris_mappings")
+    def test_lay_out_file_to_uris_mappings_call_sequence(
+        self,
+        p_init_file_to_uris_mappings,
+        p_set_mirrors_considering_restrictions,
+        p_order_primaryuri_dict_values,
+        p_add_thirdpartymirrors_to_primaryuri_dict,
+        p_merge_primaryuri_values_into_filedict,
+    ):
+        """This is a mockist approach to test that the method under test
+        ie, ``_lay_out_file_to_uris_mappings`` performs the correct
+        sequence of calls, in the correct order.
+        """
+        fetcher = FilesFetcher({"a": "b"}, FakeParams())
+        manager = MagicMock()
+        manager.attach_mock(p_init_file_to_uris_mappings, "_init_file_to_uris_mappings")
+        manager.attach_mock(
+            p_set_mirrors_considering_restrictions,
+            "_set_mirrors_considering_restrictions",
+        )
+        manager.attach_mock(
+            p_order_primaryuri_dict_values, "_order_primaryuri_dict_values"
+        )
+        manager.attach_mock(
+            p_add_thirdpartymirrors_to_primaryuri_dict,
+            "_add_thirdpartymirrors_to_primaryuri_dict",
+        )
+        manager.attach_mock(
+            p_merge_primaryuri_values_into_filedict,
+            "_merge_primaryuri_values_into_filedict",
+        )
+
+        # Exercise:
+        fetcher._lay_out_file_to_uris_mappings()
+
+        # check:
+        manager.assert_has_calls(
+            [
+                call._init_file_to_uris_mappings(),
+                call._set_mirrors_considering_restrictions(),
+                call._order_primaryuri_dict_values(),
+                call._add_thirdpartymirrors_to_primaryuri_dict(),
+                call._merge_primaryuri_values_into_filedict(),
+            ]
+        )
+
 
 @patch("portage.package.ebuild.fetch.partial")
 @patch("portage.package.ebuild.fetch.FilesFetcher._lay_out_file_to_uris_mappings")
@@ -946,7 +1004,7 @@ class FilesFetcherEnsureInFiledictWithGenericMirrors(unittest.TestCase):
     def setUp(self):
         self.afile = DistfileName("a")
 
-    def test_idempotence(self, play_out_file_to_uris_mappings, mpartial):
+    def test_idempotence(self, *_):
         """If the item is already in the ``filedict`` mapping, nothing
         new happens after the method: i.e. the method is idempotent.
         """
@@ -966,7 +1024,7 @@ class FilesFetcherEnsureInFiledictWithGenericMirrors(unittest.TestCase):
         )
         self.assertEqual(fetcher.filedict, {self.afile: ["b-uri"]})
 
-    def test_only_local_mirrors(self, play_out_file_to_uris_mappings, mpartial):
+    def test_only_local_mirrors(self, _, mpartial):
         """This test assumes that the filedict attribute of the fetcher only
         contains local mirrors when the conditions for that are met.
         There are three conditions. The three are arranged in sequence and
